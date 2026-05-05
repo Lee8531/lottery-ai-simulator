@@ -13,6 +13,11 @@
 这是一个面向本地个人研究的彩票历史数据分析项目。系统读取标准化开奖数据，结合彩票规则、统计特征、回测流程和机器学习候选生成，帮助用户在 Web 页面里完成开奖数据更新、候选号码生成、推荐记录保存和开奖后校验。
 
 项目目标不是“保证命中”，而是把每一次模拟推荐都记录下来，等开奖后按真实规则回填结果，长期观察策略表现。
+<img width="1974" height="1368" alt="image" src="https://github.com/user-attachments/assets/34191710-760a-4090-94e4-8fce470be37b" />
+
+<img width="1604" height="2450" alt="image" src="https://github.com/user-attachments/assets/5e53b5f2-2b7e-49fc-bf06-52f327e3d5b3" />
+<img width="1737" height="1146" alt="image" src="https://github.com/user-attachments/assets/b942d72c-1505-4316-a833-b306aacf7af6" />
+
 
 ## 支持彩种
 
