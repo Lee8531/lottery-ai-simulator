@@ -56,10 +56,20 @@ python -m lottery_sim.cli dashboard --reports reports/latest --host 127.0.0.1 --
 
 默认会优先尝试 FastAPI 服务；如果本机没有安装 FastAPI，会自动切换到内置本地服务，页面功能仍可使用。
 
+推荐使用项目本地虚拟环境运行：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip fastapi uvicorn
+$env:PYTHONPATH='src'
+python -m lottery_sim.cli dashboard --server fastapi --reports reports/latest --host 127.0.0.1 --port 8765
+```
+
 如需强制使用 FastAPI：
 
 ```powershell
-pip install fastapi uvicorn
+.\.venv\Scripts\Activate.ps1
 $env:PYTHONPATH='src'
 python -m lottery_sim.cli dashboard --server fastapi --reports reports/latest --host 127.0.0.1 --port 8765
 ```
