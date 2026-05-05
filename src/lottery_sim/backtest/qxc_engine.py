@@ -1,0 +1,54 @@
+from typing import List, Protocol, Sequence
+
+from lottery_sim.games.qxc import QxcGame
+from lottery_sim.models import BacktestResult, BetResult, DrawQXC, QxcPick
+
+
+class QxcStrategy(Protocol):
+    name: str
+
+    def generate(self, history: Sequence[DrawQXC]) -> QxcPick:
+        ...
+
+
+def run_qxc_backtest(
+    draws: Sequence[DrawQXC],
+    game: QxcGame,
+    strategy: QxcStrategy,
+    min_history: int = 1,
+) -> BacktestResult:
+    if min_history < 0:
+        raise ValueError("min_history 不能小于0")
+
+    ordered_draws = sorted(draws, key=lambda draw: int(draw.issue))
+    bet_results: List[BetResult] = []
+    hit_distribution = {level: 0 for level in game.prize_amounts}
+
+    for index in range(min_history, len(ordered_draws)):
+        target = ordered_draws[index]
+        history = tuple(ordered_draws[:index])
+        pick = game.validate_pick(strategy.generate(history))
+        level = game.prize_level(target.numbers, pick)
+        payout = game.prize_amounts[level]
+        hit_distribution[level] += 1
+
+        bet_results.append(
+            BetResult(
+                issue=target.issue,
+                draw_numbers=target.numbers,
+                pick_numbers=pick,
+                hit=payout > 0,
+                cost=game.ticket_cost,
+                payout=payout,
+            )
+        )
+
+    return BacktestResult(
+        game_name=game.name,
+        total_draws=len(bet_results),
+        total_bets=len(bet_results),
+        total_cost=sum(result.cost for result in bet_results),
+        total_payout=sum(result.payout for result in bet_results),
+        hit_distribution=hit_distribution,
+        bet_results=tuple(bet_results),
+    )
