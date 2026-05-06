@@ -49,33 +49,52 @@
 4. 开奖数据更新后，系统校验历史推荐是否命中。
 5. Web 总览展示推荐数量、待开奖数量、中奖记录和奖金统计。
 
-## Web 版本启动
+## 环境要求
 
-在项目目录打开 PowerShell：
+- Python 3.10 或更新版本。当前项目已在 Python 3.14.3 下做过基础导入校验。
+- PowerShell。项目脚本位于 `scripts/`，适合 Windows PowerShell 直接执行。
+- 浏览器。Web 仪表盘默认监听本机 `127.0.0.1:8765`。
+- 网络访问。更新开奖数据时会从数据源拉取历史开奖文本；也可以通过命令参数传入本地数据文件。
 
-```powershell
-$env:PYTHONPATH='src'
-python -m lottery_sim.cli dashboard --reports reports/latest --host 127.0.0.1 --port 8765
-```
+项目核心逻辑和内置本地 Web 服务主要使用 Python 标准库。`requirements.txt` 中的 `fastapi` 和 `uvicorn` 用于推荐的 FastAPI Web 服务模式。
 
-默认会优先尝试 FastAPI 服务；如果本机没有安装 FastAPI，会自动切换到内置本地服务，页面功能仍可使用。
+## 安装依赖
 
-推荐使用项目本地虚拟环境运行：
+在项目目录打开 PowerShell，推荐使用项目本地虚拟环境运行：
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip fastapi uvicorn
-$env:PYTHONPATH='src'
-python -m lottery_sim.cli dashboard --server fastapi --reports reports/latest --host 127.0.0.1 --port 8765
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-如需强制使用 FastAPI：
+如果只想使用内置本地服务，可以不安装 `requirements.txt`，启动时指定 `--server stdlib`。
+
+## Web 版本启动
+
+推荐使用 FastAPI 服务：
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 $env:PYTHONPATH='src'
 python -m lottery_sim.cli dashboard --server fastapi --reports reports/latest --host 127.0.0.1 --port 8765
+```
+
+或者使用自动模式：优先尝试 FastAPI；如果没有安装 FastAPI，会切换到内置本地服务。
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+$env:PYTHONPATH='src'
+python -m lottery_sim.cli dashboard --reports reports/latest --host 127.0.0.1 --port 8765
+```
+
+强制使用内置本地服务：
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+$env:PYTHONPATH='src'
+python -m lottery_sim.cli dashboard --server stdlib --reports reports/latest --host 127.0.0.1 --port 8765
 ```
 
 浏览器访问：
@@ -99,4 +118,3 @@ data/normalized/
 ## 风险声明
 
 彩票开奖结果具有强随机性。项目中的统计分析、机器学习候选和历史回测只能用于模拟研究，不能作为确定性预测依据，也不构成任何投注建议。
-
