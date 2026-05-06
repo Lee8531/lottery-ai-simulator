@@ -7,6 +7,10 @@
 不承诺预测未来，只做可追踪、可校验、可复盘的彩票数据模拟分析。
  [🌐 友情链接linuxdo](https://linux.do/) 
 </div>
+## 更新多人支持版本
+<img width="2550" height="1275" alt="image" src="https://github.com/user-attachments/assets/c4ff08df-5f2a-475f-babb-151944ec4eb7" />
+
+
 
 ## 项目概述
 
@@ -17,8 +21,6 @@
 
 <img width="1604" height="2450" alt="image" src="https://github.com/user-attachments/assets/5e53b5f2-2b7e-49fc-bf06-52f327e3d5b3" />
 <img width="1737" height="1146" alt="image" src="https://github.com/user-attachments/assets/b942d72c-1505-4316-a833-b306aacf7af6" />
-## 更新多人支持版本
-<img width="2550" height="1275" alt="image" src="https://github.com/user-attachments/assets/c4ff08df-5f2a-475f-babb-151944ec4eb7" />
 
 
 ## 支持彩种
