@@ -1,8 +1,12 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.test-tmp/
 .coverage
 htmlcov/
+build/
+dist/
+*.spec
 .venv/
 venv/
 AGENT.md

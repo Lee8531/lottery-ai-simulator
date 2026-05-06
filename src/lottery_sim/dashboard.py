@@ -260,6 +260,9 @@ class DashboardJob:
     stage_label: str = "准备执行"
     stage_index: int = 0
     output_lines: List[str] = field(default_factory=list)
+    user_key: str = ""
+    report_dir: Optional[Path] = None
+    history_data_dir: Optional[Path] = None
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
 
@@ -387,10 +390,18 @@ def run_dashboard_action(
     )
 
 
-def _dashboard_command(action: str, game_code: str, options: Dict[str, str]) -> Optional[List[str]]:
+def _dashboard_command(
+    action: str,
+    game_code: str,
+    options: Dict[str, str],
+    data_dir: Optional[Path] = None,
+    report_dir: Optional[Path] = None,
+    recommendation_dir: Optional[Path] = None,
+    model_dir: Optional[Path] = None,
+) -> Optional[List[str]]:
     if action == "update-data":
-        return [
-            "powershell",
+        command = [
+            _powershell_executable(),
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
@@ -399,12 +410,19 @@ def _dashboard_command(action: str, game_code: str, options: Dict[str, str]) -> 
             "-Game",
             game_code,
         ]
+        _append_dashboard_path_options(
+            command,
+            data_dir=data_dir,
+            report_dir=report_dir,
+            recommendation_dir=recommendation_dir,
+        )
+        return command
 
     if action not in {"daily", "generate"}:
         return None
 
     command = [
-        "powershell",
+        _powershell_executable(),
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
@@ -416,7 +434,35 @@ def _dashboard_command(action: str, game_code: str, options: Dict[str, str]) -> 
     if action == "generate":
         command.append("-SkipNormalize")
     command.extend(_dashboard_daily_options(game_code, options))
+    _append_dashboard_path_options(
+        command,
+        data_dir=data_dir,
+        report_dir=report_dir,
+        recommendation_dir=recommendation_dir,
+        model_dir=model_dir,
+    )
     return command
+
+
+def _append_dashboard_path_options(
+    command: List[str],
+    data_dir: Optional[Path] = None,
+    report_dir: Optional[Path] = None,
+    recommendation_dir: Optional[Path] = None,
+    model_dir: Optional[Path] = None,
+) -> None:
+    for flag, path in (
+        ("-DataDir", data_dir),
+        ("-ReportDir", report_dir),
+        ("-RecommendationDir", recommendation_dir),
+        ("-ModelDir", model_dir),
+    ):
+        if path is not None:
+            command.extend([flag, Path(path).as_posix()])
+
+
+def _powershell_executable() -> str:
+    return os.environ.get("LOTTERY_POWERSHELL", "powershell")
 
 
 def _dashboard_daily_options(game_code: str, options: Dict[str, str]) -> List[str]:
@@ -459,6 +505,12 @@ def start_dashboard_job(
     repo_root: Path,
     game_code: str = "",
     options: Optional[Dict[str, str]] = None,
+    data_dir: Optional[Path] = None,
+    report_dir: Optional[Path] = None,
+    recommendation_dir: Optional[Path] = None,
+    model_dir: Optional[Path] = None,
+    history_data_dir: Optional[Path] = None,
+    user_key: str = "",
 ) -> DashboardJob:
     valid_game_codes = {code for code, _ in GAME_CONFIGS}
     if not game_code:
@@ -466,18 +518,43 @@ def start_dashboard_job(
     if game_code not in valid_game_codes:
         return _failed_dashboard_job(action, game_code, f"Unsupported game code: {game_code}")
 
-    command = _dashboard_command(action, game_code, options or {})
+    if user_key and _user_has_running_dashboard_job(user_key):
+        return _failed_dashboard_job(action, game_code, f"User {user_key} already has a running job.")
+
+    command = _dashboard_command(
+        action,
+        game_code,
+        options or {},
+        data_dir=data_dir,
+        report_dir=report_dir,
+        recommendation_dir=recommendation_dir,
+        model_dir=model_dir,
+    )
     if command is None:
         return _failed_dashboard_job(action, game_code, f"Unknown action: {action}")
 
-    job = _create_dashboard_job(action, game_code, command)
+    job = _create_dashboard_job(
+        action,
+        game_code,
+        command,
+        user_key=user_key,
+        report_dir=report_dir,
+        history_data_dir=history_data_dir,
+    )
     _store_dashboard_job(job)
     worker = threading.Thread(target=_run_dashboard_job, args=(job, Path(repo_root)), daemon=True)
     worker.start()
     return job
 
 
-def _create_dashboard_job(action: str, game_code: str, command: Sequence[str]) -> DashboardJob:
+def _create_dashboard_job(
+    action: str,
+    game_code: str,
+    command: Sequence[str],
+    user_key: str = "",
+    report_dir: Optional[Path] = None,
+    history_data_dir: Optional[Path] = None,
+) -> DashboardJob:
     stage_labels = _dashboard_stage_labels(action, game_code)
     return DashboardJob(
         job_id=uuid.uuid4().hex,
@@ -485,6 +562,9 @@ def _create_dashboard_job(action: str, game_code: str, command: Sequence[str]) -
         game_code=game_code,
         command=tuple(command),
         stage_labels=stage_labels,
+        user_key=user_key,
+        report_dir=Path(report_dir) if report_dir is not None else None,
+        history_data_dir=Path(history_data_dir) if history_data_dir is not None else None,
         stage_label=stage_labels[0] if stage_labels else "执行中",
     )
 
@@ -509,6 +589,14 @@ def _store_dashboard_job(job: DashboardJob) -> None:
 def _get_dashboard_job(job_id: str) -> Optional[DashboardJob]:
     with _DASHBOARD_JOBS_LOCK:
         return _DASHBOARD_JOBS.get(job_id)
+
+
+def _user_has_running_dashboard_job(user_key: str) -> bool:
+    with _DASHBOARD_JOBS_LOCK:
+        return any(
+            job.user_key == user_key and job.status == "running"
+            for job in _DASHBOARD_JOBS.values()
+        )
 
 
 def _prune_dashboard_jobs_locked() -> None:
@@ -556,12 +644,17 @@ def _record_dashboard_job_history(job: DashboardJob, repo_root: Path) -> Dashboa
             summary=_summarize_job_output(job.output_lines),
             archive_dir=archive_dir,
         )
-    _append_dashboard_action_record(Path(repo_root) / "data", record)
-    _record_dashboard_action_to_sqlite(repo_root, record)
+    history_data_dir = Path(job.history_data_dir) if job.history_data_dir is not None else Path(repo_root) / "data"
+    _append_dashboard_action_record(history_data_dir, record)
+    _record_dashboard_action_to_sqlite(repo_root, record, history_db=history_data_dir / "history.sqlite3")
     return record
 
 
-def _record_dashboard_action_to_sqlite(repo_root: Path, record: DashboardActionHistoryRecord) -> None:
+def _record_dashboard_action_to_sqlite(
+    repo_root: Path,
+    record: DashboardActionHistoryRecord,
+    history_db: Optional[Path] = None,
+) -> None:
     payload = {
         "created_at": record.created_at,
         "job_id": record.job_id,
@@ -574,7 +667,7 @@ def _record_dashboard_action_to_sqlite(repo_root: Path, record: DashboardActionH
         "summary": record.summary,
         "archive_dir": record.archive_dir,
     }
-    db_path = _dashboard_db_path_for_root(repo_root)
+    db_path = Path(history_db) if history_db is not None else _dashboard_db_path_for_root(repo_root)
     _record_sqlite_dashboard_action(db_path, payload)
     if record.action in {"daily", "generate"}:
         _record_sqlite_training_record(db_path, payload)
@@ -583,11 +676,15 @@ def _record_dashboard_action_to_sqlite(repo_root: Path, record: DashboardActionH
 def _archive_dashboard_reports(job: DashboardJob, repo_root: Path) -> str:
     if job.action not in {"daily", "generate"} or not job.game_code:
         return ""
-    source_dir = Path(repo_root) / "reports" / "latest"
+    source_dir = Path(job.report_dir) if job.report_dir is not None else Path(repo_root) / "reports" / "latest"
     if not source_dir.exists():
         return ""
-    archive_rel = Path("data") / "report-history" / job.game_code / job.job_id
-    archive_dir = Path(repo_root) / archive_rel
+    if job.history_data_dir is not None:
+        archive_rel = Path("report-history") / job.game_code / job.job_id
+        archive_dir = Path(job.history_data_dir) / archive_rel
+    else:
+        archive_rel = Path("data") / "report-history" / job.game_code / job.job_id
+        archive_dir = Path(repo_root) / archive_rel
     archive_dir.mkdir(parents=True, exist_ok=True)
     copied = 0
     paths = list(source_dir.glob(f"*-{job.game_code}.txt"))
@@ -908,6 +1005,10 @@ def _load_dashboard_recommendation_records(reports_path: Path, game_code: str) -
 
 def _resolve_recommendation_dir(reports_path: Path) -> Path:
     reports_path = Path(reports_path)
+    user_reports = _resolve_user_reports(reports_path)
+    if user_reports is not None:
+        root, username = user_reports
+        return root / "data" / "users" / username / "recommendations"
     if reports_path.name == "latest" and reports_path.parent.name == "reports":
         return reports_path.parent.parent / "data" / "recommendations"
     return Path("data/recommendations")
@@ -915,9 +1016,24 @@ def _resolve_recommendation_dir(reports_path: Path) -> Path:
 
 def _resolve_dashboard_data_dir(reports_path: Path) -> Path:
     reports_path = Path(reports_path)
+    user_reports = _resolve_user_reports(reports_path)
+    if user_reports is not None:
+        root, username = user_reports
+        return root / "data" / "users" / username
     if reports_path.name == "latest" and reports_path.parent.name == "reports":
         return reports_path.parent.parent / "data"
     return Path("data")
+
+
+def _resolve_user_reports(reports_path: Path) -> Optional[Tuple[Path, str]]:
+    reports_path = Path(reports_path)
+    if (
+        reports_path.name == "latest"
+        and reports_path.parent.parent.name == "users"
+        and reports_path.parent.parent.parent.name == "reports"
+    ):
+        return reports_path.parent.parent.parent.parent, reports_path.parent.name
+    return None
 
 
 def _dashboard_db_path_for_reports(reports_path: Path) -> Path:
@@ -2097,6 +2213,10 @@ def _merge_candidates(*candidate_groups: Sequence[DashboardCandidate]) -> List[D
 
 def _resolve_history_data_dir(reports_path: Path) -> Path:
     reports_path = Path(reports_path)
+    user_reports = _resolve_user_reports(reports_path)
+    if user_reports is not None:
+        root, _username = user_reports
+        return root / "data" / "normalized"
     if reports_path.name == "latest" and reports_path.parent.name == "reports":
         return reports_path.parent.parent / "data" / "normalized"
     return Path("data/normalized")

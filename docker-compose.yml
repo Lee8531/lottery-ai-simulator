@@ -1,0 +1,17 @@
+services:
+  lottery-ai-simulator:
+    build: .
+    image: lottery-ai-simulator:latest
+    container_name: lottery-ai-simulator
+    ports:
+      - "8765:8765"
+    environment:
+      LOTTERY_ADMIN_USER: ${LOTTERY_ADMIN_USER:-admin}
+      LOTTERY_ADMIN_PASSWORD: ${LOTTERY_ADMIN_PASSWORD:-change-this-password}
+      LOTTERY_POWERSHELL: pwsh
+      PYTHONPATH: /app/src
+      PYTHONUTF8: "1"
+    volumes:
+      - ./data:/app/data
+      - ./reports:/app/reports
+    restart: unless-stopped

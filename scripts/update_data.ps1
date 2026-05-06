@@ -48,20 +48,39 @@ function Ensure-Directory {
     }
 }
 
+function Get-LotteryCommandText {
+    param([string[]]$Arguments)
+
+    if ($env:LOTTERY_CLI_EXE) {
+        return "`"$env:LOTTERY_CLI_EXE`" --cli " + ($Arguments -join " ")
+    }
+    return "python -m lottery_sim.cli " + ($Arguments -join " ")
+}
+
+function Invoke-LotteryCli {
+    param([string[]]$Arguments)
+
+    if ($env:LOTTERY_CLI_EXE) {
+        & $env:LOTTERY_CLI_EXE --cli @Arguments
+        return
+    }
+    & python -m lottery_sim.cli @Arguments
+}
+
 function Invoke-LotteryCommand {
     param(
         [string]$Name,
         [string[]]$Arguments
     )
 
-    $commandText = "python -m lottery_sim.cli " + ($Arguments -join " ")
+    $commandText = Get-LotteryCommandText -Arguments $Arguments
     Write-Host "[$Name] $commandText"
 
     if ($DryRun) {
         return
     }
 
-    & python -m lottery_sim.cli @Arguments
+    Invoke-LotteryCli -Arguments $Arguments
     $exitCode = $LASTEXITCODE
 
     if ($exitCode -ne 0) {

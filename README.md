@@ -118,3 +118,103 @@ data/normalized/
 ## 风险声明
 
 彩票开奖结果具有强随机性。项目中的统计分析、机器学习候选和历史回测只能用于模拟研究，不能作为确定性预测依据，也不构成任何投注建议。
+
+## 多用户服务模式
+
+FastAPI 仪表盘支持账号登录、注册和用户工作区隔离。服务启动时会根据环境变量创建一个初始账号，新用户也可以在登录页点击“注册新账号”自助创建：
+
+```powershell
+$env:LOTTERY_ADMIN_USER='admin'
+$env:LOTTERY_ADMIN_PASSWORD='change-this-password'
+$env:PYTHONPATH='src'
+python -m lottery_sim.cli dashboard --server fastapi --reports reports/latest --host 0.0.0.0 --port 8765
+```
+
+默认账号密码：
+
+```text
+账号：admin
+密码：admin
+```
+
+如果没有设置 `LOTTERY_ADMIN_PASSWORD`，系统会自动创建 `admin / admin`。默认密码只在文档中说明，登录页和启动输出不会展示。正式部署或给多人使用前，请务必设置自己的管理员密码。
+
+共享开奖基础数据：
+
+```text
+data/normalized/
+```
+
+每个用户独立保存推荐记录、报告、模型、导出文件和 AI 配置：
+
+```text
+data/users/<username>/
+reports/users/<username>/
+```
+
+内置 stdlib 服务仍作为本地单用户备用模式；多人使用请启动 FastAPI 模式。
+
+## Docker 服务
+
+推荐用 Docker Compose 在服务器、NAS 或局域网机器上运行多人服务：
+
+```powershell
+$env:LOTTERY_ADMIN_USER='admin'
+$env:LOTTERY_ADMIN_PASSWORD='change-this-password'
+docker compose up -d --build
+```
+
+浏览器访问：
+
+```text
+http://localhost:8765
+```
+
+常用命令：
+
+```powershell
+docker compose logs -f
+docker compose down
+```
+
+Compose 会挂载本地持久化目录：
+
+```text
+./data:/app/data
+./reports:/app/reports
+```
+
+Docker 镜像包含 PowerShell Core，因为后台工作流复用了 `scripts/` 下的 PowerShell 自动化脚本。
+
+## Windows EXE 打包
+
+在 PowerShell 中执行：
+
+```powershell
+.\scripts\build_exe.ps1
+```
+
+打包结果：
+
+```text
+dist\lottery-ai-simulator\lottery-ai-simulator.exe
+```
+
+双击 `lottery-ai-simulator.exe` 会启动本地 FastAPI 仪表盘并自动打开浏览器，默认地址是：
+
+```text
+http://127.0.0.1:8765
+```
+
+EXE 包已包含 Python 运行时。后台任务会通过同一个 exe 的 `--cli` 模式执行，不要求使用者额外安装 Python。
+
+EXE 运行数据保存在打包目录旁边：
+
+```text
+dist\lottery-ai-simulator\data\
+dist\lottery-ai-simulator\reports\
+```
+
+`dist/`、`build/` 和 `*.spec` 已加入 `.gitignore`，不会上传到 Git。发布时可以手动把 `dist\lottery-ai-simulator\` 压缩后上传到 GitHub Release。
+
+APK 打包不包含在当前版本中。

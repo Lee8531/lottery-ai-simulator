@@ -78,6 +78,25 @@ function Assert-DataFile {
     }
 }
 
+function Get-LotteryCommandText {
+    param([string[]]$Arguments)
+
+    if ($env:LOTTERY_CLI_EXE) {
+        return "`"$env:LOTTERY_CLI_EXE`" --cli " + ($Arguments -join " ")
+    }
+    return "python -m lottery_sim.cli " + ($Arguments -join " ")
+}
+
+function Invoke-LotteryCli {
+    param([string[]]$Arguments)
+
+    if ($env:LOTTERY_CLI_EXE) {
+        & $env:LOTTERY_CLI_EXE --cli @Arguments
+        return
+    }
+    & python -m lottery_sim.cli @Arguments
+}
+
 function Invoke-LotteryCommand {
     param(
         [string]$Name,
@@ -85,7 +104,7 @@ function Invoke-LotteryCommand {
         [string]$OutputFile = ""
     )
 
-    $commandText = "python -m lottery_sim.cli " + ($Arguments -join " ")
+    $commandText = Get-LotteryCommandText -Arguments $Arguments
     if ($OutputFile) {
         $commandText = "$commandText > $OutputFile"
     }
@@ -96,13 +115,13 @@ function Invoke-LotteryCommand {
     }
 
     if ($OutputFile) {
-        $output = & python -m lottery_sim.cli @Arguments 2>&1
+        $output = Invoke-LotteryCli -Arguments $Arguments 2>&1
         $exitCode = $LASTEXITCODE
         $output | Set-Content -Path $OutputFile -Encoding UTF8
         Write-Host "  -> $OutputFile"
     }
     else {
-        & python -m lottery_sim.cli @Arguments
+        Invoke-LotteryCli -Arguments $Arguments
         $exitCode = $LASTEXITCODE
     }
 
