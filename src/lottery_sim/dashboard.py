@@ -3145,8 +3145,8 @@ function watchActionJob(jobId, button) {
       renderJobProgress(job);
       if (job.status === 'completed' || job.status === 'failed') {
         source.close();
-        setActionState(job.status === 'completed' ? '瀹屾垚' : '澶辫触', job.status === 'completed' ? 'ok' : 'error');
-        actionSummary.textContent = job.status === 'completed' ? `${button.textContent}瀹屾垚` : `${button.textContent}澶辫触`;
+        setActionState(job.status === 'completed' ? '完成' : '失败', job.status === 'completed' ? 'ok' : 'error');
+        actionSummary.textContent = job.status === 'completed' ? `${button.textContent}完成` : `${button.textContent}失败`;
         actionDetails.open = job.status !== 'completed';
         refreshDashboardAfterJob(job);
         resolve(job);

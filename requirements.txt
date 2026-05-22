@@ -1,5 +1,6 @@
 # Recommended dependencies for the FastAPI dashboard server.
 fastapi
 uvicorn
+
 # Used by FastAPI TestClient in the automated tests.
 httpx
