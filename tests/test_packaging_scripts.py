@@ -23,6 +23,14 @@ class PackagingScriptTests(unittest.TestCase):
         self.assertIn("LOTTERY_CLI_EXE", update_data)
         self.assertIn("--cli", update_data)
 
+    def test_build_exe_prefers_venv_python_and_installs_requirements(self):
+        build_script = Path("scripts/build_exe.ps1").read_text(encoding="utf-8")
+
+        self.assertIn(".venv", build_script)
+        self.assertIn("$PythonExe", build_script)
+        self.assertIn("-m pip install -r requirements.txt", build_script)
+        self.assertIn("-m PyInstaller", build_script)
+
     def test_readme_documents_chinese_packaging_and_default_password(self):
         readme = Path("README.md").read_text(encoding="utf-8")
 

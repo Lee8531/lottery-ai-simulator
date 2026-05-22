@@ -12,10 +12,20 @@ $env:PYTHONPATH = "src"
 $AppName = "lottery-ai-simulator"
 $DistDir = Join-Path $RepoRoot "dist\$AppName"
 $BuildDir = Join-Path $RepoRoot "build\$AppName"
+$VenvPython = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+$PythonExe = if (Test-Path -LiteralPath $VenvPython) { $VenvPython } else { "python" }
 
 function Test-PyInstaller {
-    & python -m PyInstaller --version *> $null
+    & $PythonExe -m PyInstaller --version *> $null
     return ($LASTEXITCODE -eq 0)
+}
+
+if (-not $SkipInstall) {
+    Write-Host "Installing Python dependencies..."
+    & $PythonExe -m pip install -r requirements.txt
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to install Python dependencies."
+    }
 }
 
 if (-not (Test-PyInstaller)) {
@@ -23,7 +33,7 @@ if (-not (Test-PyInstaller)) {
         throw "PyInstaller is not installed. Run without -SkipInstall or install it manually."
     }
     Write-Host "Installing PyInstaller..."
-    & python -m pip install pyinstaller
+    & $PythonExe -m pip install pyinstaller
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to install PyInstaller."
     }
@@ -56,7 +66,7 @@ $pyinstallerArgs = @(
     "launcher.py"
 )
 
-& python -m PyInstaller @pyinstallerArgs
+& $PythonExe -m PyInstaller @pyinstallerArgs
 if ($LASTEXITCODE -ne 0) {
     throw "PyInstaller build failed."
 }

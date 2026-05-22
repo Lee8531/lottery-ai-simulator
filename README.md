@@ -211,6 +211,16 @@ dist\lottery-ai-simulator\lottery-ai-simulator.exe
 http://127.0.0.1:8765
 ```
 
+如果已经有一个实例在运行，再次双击会直接打开已有仪表盘页面，不会因为端口占用直接退出。
+
+如果启动失败，EXE 会在同目录写入：
+
+```text
+startup-error.log
+```
+
+把这个日志发给维护者即可定位具体原因。
+
 EXE 包已包含 Python 运行时。后台任务会通过同一个 exe 的 `--cli` 模式执行，不要求使用者额外安装 Python。
 
 EXE 运行数据保存在打包目录旁边：
