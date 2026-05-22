@@ -5,10 +5,13 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     PYTHONUTF8=1 \
     PYTHONPATH=/app/src \
-    LOTTERY_POWERSHELL=pwsh
+    LOTTERY_POWERSHELL=pwsh \
+    TZ=Asia/Shanghai
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 python3-pip python3-venv ca-certificates \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 python3-pip python3-venv ca-certificates tzdata \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone \
     && ln -sf /usr/bin/python3 /usr/local/bin/python \
     && rm -rf /var/lib/apt/lists/*
 

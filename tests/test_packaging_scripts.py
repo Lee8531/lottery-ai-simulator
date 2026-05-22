@@ -31,6 +31,15 @@ class PackagingScriptTests(unittest.TestCase):
         self.assertIn("-m pip install -r requirements.txt", build_script)
         self.assertIn("-m PyInstaller", build_script)
 
+    def test_docker_runtime_uses_china_timezone(self):
+        dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
+        compose = Path("docker-compose.yml").read_text(encoding="utf-8")
+
+        self.assertIn("TZ=Asia/Shanghai", dockerfile)
+        self.assertIn("tzdata", dockerfile)
+        self.assertIn("/etc/localtime", dockerfile)
+        self.assertIn("TZ: ${TZ:-Asia/Shanghai}", compose)
+
     def test_readme_documents_chinese_packaging_and_default_password(self):
         readme = Path("README.md").read_text(encoding="utf-8")
 

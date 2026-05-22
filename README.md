@@ -166,6 +166,7 @@ reports/users/<username>/
 ```powershell
 $env:LOTTERY_ADMIN_USER='admin'
 $env:LOTTERY_ADMIN_PASSWORD='change-this-password'
+$env:TZ='Asia/Shanghai'
 docker compose up -d --build
 ```
 
@@ -187,6 +188,12 @@ Compose 会挂载本地持久化目录：
 ```text
 ./data:/app/data
 ./reports:/app/reports
+```
+
+Docker 默认使用 `Asia/Shanghai` 时区。页面里的生成时间来自容器本地时间；如果服务器在其他时区，可以在启动前修改 `TZ` 环境变量。已运行过旧镜像时，建议重新构建并重建容器：
+
+```powershell
+docker compose up -d --build --force-recreate
 ```
 
 Docker 镜像包含 PowerShell Core，因为后台工作流复用了 `scripts/` 下的 PowerShell 自动化脚本。
