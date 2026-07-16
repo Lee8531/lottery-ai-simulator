@@ -390,6 +390,18 @@ def run_dashboard_action(
     )
 
 
+def _use_bash_scripts() -> bool:
+    """Check if PowerShell is available; fall back to bash scripts if not."""
+    ps_exe = os.environ.get("LOTTERY_POWERSHELL", "")
+    if ps_exe:
+        return False
+    import shutil
+    for name in ("pwsh", "powershell", "pwsh.exe", "powershell.exe"):
+        if shutil.which(name):
+            return False
+    return True
+
+
 def _dashboard_command(
     action: str,
     game_code: str,
@@ -399,17 +411,22 @@ def _dashboard_command(
     recommendation_dir: Optional[Path] = None,
     model_dir: Optional[Path] = None,
 ) -> Optional[List[str]]:
+    use_bash = _use_bash_scripts()
+
     if action == "update-data":
-        command = [
-            _powershell_executable(),
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            "scripts/update_data.ps1",
-            "-Game",
-            game_code,
-        ]
+        if use_bash:
+            command = ["bash", "scripts/update_data.sh", "-Game", game_code]
+        else:
+            command = [
+                _powershell_executable(),
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "scripts/update_data.ps1",
+                "-Game",
+                game_code,
+            ]
         _append_dashboard_path_options(
             command,
             data_dir=data_dir,
@@ -421,26 +438,39 @@ def _dashboard_command(
     if action not in {"daily", "generate"}:
         return None
 
-    command = [
-        _powershell_executable(),
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "scripts/daily.ps1",
-        "-Game",
-        game_code,
-    ]
-    if action == "generate":
-        command.append("-SkipNormalize")
-    command.extend(_dashboard_daily_options(game_code, options))
-    _append_dashboard_path_options(
-        command,
-        data_dir=data_dir,
-        report_dir=report_dir,
-        recommendation_dir=recommendation_dir,
-        model_dir=model_dir,
-    )
+    if use_bash:
+        command = ["bash", "scripts/daily.sh", "-Game", game_code]
+        if action == "generate":
+            command.append("-SkipNormalize")
+        command.extend(_dashboard_daily_options(game_code, options))
+        _append_dashboard_path_options(
+            command,
+            data_dir=data_dir,
+            report_dir=report_dir,
+            recommendation_dir=recommendation_dir,
+            model_dir=model_dir,
+        )
+    else:
+        command = [
+            _powershell_executable(),
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "scripts/daily.ps1",
+            "-Game",
+            game_code,
+        ]
+        if action == "generate":
+            command.append("-SkipNormalize")
+        command.extend(_dashboard_daily_options(game_code, options))
+        _append_dashboard_path_options(
+            command,
+            data_dir=data_dir,
+            report_dir=report_dir,
+            recommendation_dir=recommendation_dir,
+            model_dir=model_dir,
+        )
     return command
 
 
