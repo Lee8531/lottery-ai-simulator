@@ -1548,6 +1548,10 @@ def _render_global_recommendation_history(games: Sequence[GameDashboard]) -> str
 </details>
 """.strip()
     rows = "\n".join(_render_recommendation_batch(batch) for batch in batches)
+    game_options = "".join(
+        f'<option value="{html.escape(g.code)}">{html.escape(g.name)}</option>'
+        for g in games
+    )
     return f"""
 <details class="panel recommendation-history-global">
   <summary class="recommendation-history-summary">
@@ -1555,6 +1559,11 @@ def _render_global_recommendation_history(games: Sequence[GameDashboard]) -> str
     <span class="history-toggle history-toggle-closed">展开</span>
     <span class="history-toggle history-toggle-open">收起</span>
   </summary>
+  <div class="rec-filter-bar">
+    <select id="rec-filter-game" class="rec-filter-select"><option value="">全部彩种</option>{game_options}</select>
+    <select id="rec-filter-status" class="rec-filter-select"><option value="">全部状态</option><option value="已开奖">已开奖</option><option value="待开奖">待开奖</option></select>
+    <select id="rec-filter-winning" class="rec-filter-select"><option value="">全部</option><option value="winning">仅中奖</option><option value="losing">仅未中奖</option></select>
+  </div>
   <p class="panel-note">按彩种、目标期和生成批次汇总；点开批次可查看当时每注推荐、开奖号码、奖级和奖金。</p>
   <div class="recommendation-batches">{rows}</div>
 </details>
@@ -1653,16 +1662,18 @@ def _recommendation_batches(games: Sequence[GameDashboard]) -> Tuple[Recommendat
 
 def _render_recommendation_batch(batch: RecommendationBatchHistory) -> str:
     status = "已开奖" if batch.pending_count == 0 and batch.checked_count else "待开奖"
+    status_class = "batch-checked" if status == "已开奖" else "batch-pending"
+    winning_class = "batch-winning" if batch.winning_count > 0 else ""
     detail_rows = "\n".join(_render_recommendation_batch_detail_row(record) for record in batch.records)
     return f"""
-<details class="recommendation-batch">
+<details class="recommendation-batch {status_class} {winning_class}" data-batch-status="{status}" data-batch-game="{html.escape(batch.game_code)}" data-batch-winning="{batch.winning_count > 0}">
   <summary>
     <span>{html.escape(batch.game_name)}</span>
     <span>目标期 {html.escape(batch.target_issue or '-')}</span>
     <span>开奖 {html.escape(batch.target_draw_date or '-')}</span>
     <span>生成 {html.escape(batch.generated_at or '-')}</span>
     <span>候选 {batch.count}</span>
-    <span>{status}</span>
+    <span class="batch-status-label">{status}</span>
     <span>中奖 {batch.winning_count}</span>
     <span>奖金 {_format_dashboard_amount(batch.payout)}</span>
     <strong class="batch-toggle-text">展开明细</strong>
@@ -1680,10 +1691,13 @@ def _render_recommendation_batch(batch: RecommendationBatchHistory) -> str:
 
 def _render_recommendation_batch_detail_row(record: RecommendationRecord) -> str:
     status = "已开奖" if record.status == "checked" else "待开奖"
+    row_class = "row-checked" if record.status == "checked" else "row-pending"
+    if record.status == "checked" and record.payout > 0:
+        row_class += " row-winning"
     prize = record.prize_level or ("待开奖" if record.status == "pending" else "未中奖")
     hit_detail = _render_hit_detail(record)
     return (
-        "<tr>"
+        f'<tr class="{row_class}">'
         f"<td>{html.escape(str(record.rank))}</td>"
         f"<td>{html.escape(record.strategy_name)}</td>"
         f"<td>{html.escape(record.numbers)}</td>"
@@ -1691,7 +1705,7 @@ def _render_recommendation_batch_detail_row(record: RecommendationRecord) -> str
         f"<td>{html.escape(prize)}</td>"
         f"<td>{hit_detail}</td>"
         f"<td>{_format_dashboard_amount(record.payout)}</td>"
-        f"<td>{status}</td>"
+        f'<td><span class="status-tag {row_class}">{status}</span></td>'
         "</tr>"
     )
 
@@ -2002,10 +2016,13 @@ def _render_recommendation_history_table(game: GameDashboard) -> str:
 
 def _render_recommendation_history_row(record: RecommendationRecord, draw_date: str = "") -> str:
     status = "已开奖" if record.status == "checked" else "待开奖"
+    row_class = "row-checked" if record.status == "checked" else "row-pending"
+    if record.status == "checked" and record.payout > 0:
+        row_class += " row-winning"
     prize = record.prize_level or ("待开奖" if record.status == "pending" else "未中奖")
     hit_detail = _render_hit_detail(record)
     return (
-        "<tr>"
+        f'<tr class="{row_class}">'
         f"<td>{html.escape(record.target_issue or '-')}</td>"
         f"<td>{html.escape(draw_date or '-')}</td>"
         f"<td>{html.escape(record.run_id or '-')}</td>"
@@ -2017,7 +2034,7 @@ def _render_recommendation_history_row(record: RecommendationRecord, draw_date: 
         f"<td>{html.escape(prize)}</td>"
         f"<td>{hit_detail}</td>"
         f"<td>{_format_dashboard_amount(record.payout)}</td>"
-        f"<td>{status}</td>"
+        f'<td><span class="status-tag {row_class}">{status}</span></td>'
         "</tr>"
     )
 
@@ -2774,6 +2791,68 @@ dd { margin: 0; font-size: 16px; font-weight: 700; }
   gap: 8px;
   margin-top: 10px;
 }
+/* 筛选栏 */
+.rec-filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+.rec-filter-select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+/* 批次颜色区分 */
+.recommendation-batch.batch-pending {
+  border-left: 4px solid #f59e0b;
+}
+.recommendation-batch.batch-checked {
+  border-left: 4px solid #10b981;
+}
+.recommendation-batch.batch-winning {
+  border-left: 4px solid #ef4444;
+}
+.batch-status-label.batch-checked {
+  color: #10b981;
+}
+.batch-status-label.batch-pending {
+  color: #f59e0b;
+}
+/* 行颜色区分 */
+tr.row-pending {
+  background: #fef3c7;
+}
+tr.row-checked {
+  background: #ecfdf5;
+}
+tr.row-winning {
+  background: #fef2f2;
+  font-weight: 600;
+}
+tr.row-winning td {
+  color: #dc2626;
+}
+/* 状态标签 */
+.status-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.status-tag.row-checked {
+  background: #d1fae5;
+  color: #065f46;
+}
+.status-tag.row-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
 .backend-panel {
   margin-bottom: 14px;
 }
@@ -3151,6 +3230,29 @@ function refreshDashboardPage() {
   window.location.replace(nextUrl.toString());
 }
 refreshDashboardData.addEventListener('click', refreshDashboardPage);
+// 推荐历史筛选
+function applyRecFilters() {
+  const gameFilter = document.getElementById('rec-filter-game').value;
+  const statusFilter = document.getElementById('rec-filter-status').value;
+  const winningFilter = document.getElementById('rec-filter-winning').value;
+  document.querySelectorAll('.recommendation-batch').forEach((batch) => {
+    const batchGame = batch.dataset.batchGame;
+    const batchStatus = batch.dataset.batchStatus;
+    const batchWinning = batch.dataset.batchWinning === 'true';
+    let show = true;
+    if (gameFilter && batchGame !== gameFilter) show = false;
+    if (statusFilter && batchStatus !== statusFilter) show = false;
+    if (winningFilter === 'winning' && !batchWinning) show = false;
+    if (winningFilter === 'losing' && batchWinning) show = false;
+    batch.style.display = show ? '' : 'none';
+  });
+}
+const filterGame = document.getElementById('rec-filter-game');
+const filterStatus = document.getElementById('rec-filter-status');
+const filterWinning = document.getElementById('rec-filter-winning');
+if (filterGame) filterGame.addEventListener('change', applyRecFilters);
+if (filterStatus) filterStatus.addEventListener('change', applyRecFilters);
+if (filterWinning) filterWinning.addEventListener('change', applyRecFilters);
 recommendationBatches.forEach((batch) => {
   const label = batch.querySelector('.batch-toggle-text');
   if (!label) {
