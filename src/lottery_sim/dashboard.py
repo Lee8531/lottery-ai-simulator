@@ -2316,6 +2316,10 @@ def _pre(text: str) -> str:
 
 
 def _make_dashboard_handler(reports_dir: Path, repo_root: Path):
+    # Resolve default user workspace so actions write to the correct paths
+    from lottery_sim.user_workspace import workspace_for_user
+    _default_ws = workspace_for_user(repo_root, "admin", create=False)
+
     class DashboardHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
             path = urlparse(self.path).path
@@ -2383,7 +2387,15 @@ def _make_dashboard_handler(reports_dir: Path, repo_root: Path):
                     for key, values in params.items()
                     if key != "game" and values
                 }
-                job = start_dashboard_job(action, repo_root, game_code=game_code, options=options)
+                job = start_dashboard_job(
+                    action, repo_root, game_code=game_code, options=options,
+                    data_dir=_default_ws.shared_data_dir,
+                    report_dir=_default_ws.reports_dir,
+                    recommendation_dir=_default_ws.recommendation_dir,
+                    model_dir=_default_ws.model_dir,
+                    history_data_dir=_default_ws.data_dir,
+                    user_key=_default_ws.username,
+                )
                 status_code = 202 if job.status == "running" else 400
                 body = json.dumps(_job_snapshot(job), ensure_ascii=False).encode("utf-8")
                 self._send(status_code, "application/json; charset=utf-8", body)
