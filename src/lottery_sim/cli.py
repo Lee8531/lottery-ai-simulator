@@ -1,4 +1,5 @@
 import argparse
+import os
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -1495,17 +1496,34 @@ def _backtest_ml_ssq(args) -> None:
 
 def _recommend_ml_ssq(args) -> None:
     draws = available_recommendation_draws(load_ssq_draws_csv(Path(args.csv)))
-    model_path = Path(args.model)
-    if model_path.exists():
-        model = load_ssq_ml_model(model_path)
-    else:
-        model = train_ssq_ml_model(draws, min_history=args.min_history, epochs=args.epochs)
-        save_ssq_ml_model(model, model_path)
-    candidates = recommend_ssq_ml(draws, model, count=args.count)
+    candidates = None
+    strategy_label = "双色球机器学习"
+
+    # Try LLM recommendation if configured
+    if os.environ.get("LOTTERY_USE_LLM") == "1":
+        try:
+            from lottery_sim.llm_recommender import llm_recommend
+            candidates = llm_recommend(draws, "ssq", "双色球", count=args.count)
+            strategy_label = "双色球AI智能"
+            print(f"[LLM] 使用LLM模型推荐成功，生成{len(candidates)}组候选")
+        except Exception as exc:
+            print(f"[LLM] LLM推荐失败，回退到ML模型: {exc}")
+            candidates = None
+
+    # Fallback to ML model if LLM failed or not configured
+    if candidates is None:
+        model_path = Path(args.model)
+        if model_path.exists():
+            model = load_ssq_ml_model(model_path)
+        else:
+            model = train_ssq_ml_model(draws, min_history=args.min_history, epochs=args.epochs)
+            save_ssq_ml_model(model, model_path)
+        candidates = recommend_ssq_ml(draws, model, count=args.count)
+
     ordered_draws = tuple(sorted(draws, key=lambda draw: int(draw.issue)))
     latest_issue = ordered_draws[-1].issue if ordered_draws else ""
     print(render_recommendation_report(
-        game_name="双色球机器学习",
+        game_name=strategy_label,
         candidates=candidates,
         history_count=len(ordered_draws),
         latest_issue=latest_issue,
@@ -1658,17 +1676,34 @@ def _backtest_ml_generic(args, game_code: str) -> None:
 
 def _recommend_ml_generic(args, game_code: str) -> None:
     draws, game, adapter = _load_generic_ml_context(args, game_code)
-    model_path = Path(args.model)
-    if model_path.exists():
-        model = load_generic_ml_model(model_path)
-    else:
-        model = train_generic_ml_model(draws, adapter, min_history=args.min_history, epochs=args.epochs)
-        save_generic_ml_model(model, model_path)
-    candidates = recommend_generic_ml(draws, model, adapter, count=args.count)
+    candidates = None
+    strategy_label = f"{game.name}机器学习"
+
+    # Try LLM recommendation if configured
+    if os.environ.get("LOTTERY_USE_LLM") == "1":
+        try:
+            from lottery_sim.llm_recommender import llm_recommend
+            candidates = llm_recommend(draws, game_code, game.name, count=args.count, adapter=adapter)
+            strategy_label = f"{game.name}AI智能"
+            print(f"[LLM] 使用LLM模型推荐成功，生成{len(candidates)}组候选")
+        except Exception as exc:
+            print(f"[LLM] LLM推荐失败，回退到ML模型: {exc}")
+            candidates = None
+
+    # Fallback to ML model if LLM failed or not configured
+    if candidates is None:
+        model_path = Path(args.model)
+        if model_path.exists():
+            model = load_generic_ml_model(model_path)
+        else:
+            model = train_generic_ml_model(draws, adapter, min_history=args.min_history, epochs=args.epochs)
+            save_generic_ml_model(model, model_path)
+        candidates = recommend_generic_ml(draws, model, adapter, count=args.count)
+
     ordered_draws = tuple(sorted(draws, key=lambda draw: int(draw.issue)))
     latest_issue = ordered_draws[-1].issue if ordered_draws else ""
     print(render_recommendation_report(
-        game_name=f"{game.name}机器学习",
+        game_name=strategy_label,
         candidates=candidates,
         history_count=len(ordered_draws),
         latest_issue=latest_issue,
@@ -1696,10 +1731,27 @@ def _record_recommend_ml_generic(args, game_code: str) -> None:
         if not args.target_issue and not args.history_until:
             save_generic_ml_model(model, model_path)
 
-    candidates = recommend_generic_ml(window.history, model, adapter, count=args.count)
+    candidates = None
+    strategy_label = game.name
+    # Try LLM recommendation if configured
+    if os.environ.get("LOTTERY_USE_LLM") == "1":
+        try:
+            from lottery_sim.llm_recommender import llm_recommend
+            candidates = llm_recommend(window.history, game_code, game.name, count=args.count, adapter=adapter)
+            strategy_label = f"{game.name}AI智能"
+            print(f"[LLM] 使用LLM模型推荐成功，生成{len(candidates)}组候选")
+        except Exception as exc:
+            print(f"[LLM] LLM推荐失败，回退到ML模型: {exc}")
+            candidates = None
+
+    # Fallback to ML model
+    if candidates is None:
+        candidates = recommend_generic_ml(window.history, model, adapter, count=args.count)
+        strategy_label = f"{game.name}机器学习"
+
     records = create_recommendation_records(
         game_code=game_code,
-        game_name=game.name,
+        game_name=strategy_label,
         candidates=candidates,
         target_issue=window.target_issue,
         history_until_issue=window.history_until_issue,
@@ -1926,10 +1978,27 @@ def _record_recommend_ml_ssq(args) -> None:
             save_ssq_ml_model(model, model_path)
 
     game = SsqGame()
-    candidates = recommend_ssq_ml(window.history, model, count=args.count)
+    candidates = None
+    strategy_label = game.name
+    # Try LLM recommendation if configured
+    if os.environ.get("LOTTERY_USE_LLM") == "1":
+        try:
+            from lottery_sim.llm_recommender import llm_recommend
+            candidates = llm_recommend(window.history, "ssq", "双色球", count=args.count)
+            strategy_label = "双色球AI智能"
+            print(f"[LLM] 使用LLM模型推荐成功，生成{len(candidates)}组候选")
+        except Exception as exc:
+            print(f"[LLM] LLM推荐失败，回退到ML模型: {exc}")
+            candidates = None
+
+    # Fallback to ML model
+    if candidates is None:
+        candidates = recommend_ssq_ml(window.history, model, count=args.count)
+        strategy_label = "双色球机器学习"
+
     records = create_recommendation_records(
         game_code="ssq",
-        game_name=game.name,
+        game_name=strategy_label,
         candidates=candidates,
         target_issue=window.target_issue,
         history_until_issue=window.history_until_issue,

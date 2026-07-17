@@ -263,6 +263,7 @@ class DashboardJob:
     user_key: str = ""
     report_dir: Optional[Path] = None
     history_data_dir: Optional[Path] = None
+    llm_env: Dict[str, str] = field(default_factory=dict)
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
 
@@ -526,7 +527,7 @@ def _dashboard_daily_options(game_code: str, options: Dict[str, str]) -> List[st
     return command_options
 
 
-def _default_command_runner(command: Sequence[str], cwd: Path) -> Tuple[int, str, str]:
+def _default_command_runner(command: Sequence[str], cwd: Path, extra_env: Optional[Dict[str, str]] = None) -> Tuple[int, str, str]:
     completed = subprocess.run(
         list(command),
         cwd=str(cwd),
@@ -534,7 +535,7 @@ def _default_command_runner(command: Sequence[str], cwd: Path) -> Tuple[int, str
         text=True,
         encoding="utf-8",
         errors="replace",
-        env=_command_env(),
+        env=_command_env(extra_env),
     )
     return completed.returncode, completed.stdout, completed.stderr
 
@@ -560,6 +561,26 @@ def start_dashboard_job(
     if user_key and _user_has_running_dashboard_job(user_key):
         return _failed_dashboard_job(action, game_code, f"User {user_key} already has a running job.")
 
+    # Read LLM config from user-level SQLite DB if available
+    llm_env: Dict[str, str] = {}
+    if repo_root and action in {"daily", "generate"}:
+        try:
+            from lottery_sim.user_workspace import workspace_for_user
+            ws = workspace_for_user(Path(repo_root), "admin", create=False)
+            config = _load_sqlite_dashboard_config(ws.history_db)
+            llm_base_url = config.get("llm_base_url", "")
+            llm_model = config.get("llm_model", "")
+            llm_api_key = config.get("llm_api_key", "")
+            if llm_base_url and llm_api_key:
+                llm_env = {
+                    "LOTTERY_USE_LLM": "1",
+                    "LOTTERY_LLM_BASE_URL": llm_base_url,
+                    "LOTTERY_LLM_MODEL": llm_model,
+                    "LOTTERY_LLM_API_KEY": llm_api_key,
+                }
+        except Exception:
+            pass  # LLM config read failure is non-critical
+
     command = _dashboard_command(
         action,
         game_code,
@@ -579,6 +600,7 @@ def start_dashboard_job(
         user_key=user_key,
         report_dir=report_dir,
         history_data_dir=history_data_dir,
+        llm_env=llm_env,
     )
     _store_dashboard_job(job)
     worker = threading.Thread(target=_run_dashboard_job, args=(job, Path(repo_root)), daemon=True)
@@ -593,6 +615,7 @@ def _create_dashboard_job(
     user_key: str = "",
     report_dir: Optional[Path] = None,
     history_data_dir: Optional[Path] = None,
+    llm_env: Optional[Dict[str, str]] = None,
 ) -> DashboardJob:
     stage_labels = _dashboard_stage_labels(action, game_code)
     return DashboardJob(
@@ -604,6 +627,7 @@ def _create_dashboard_job(
         user_key=user_key,
         report_dir=Path(report_dir) if report_dir is not None else None,
         history_data_dir=Path(history_data_dir) if history_data_dir is not None else None,
+        llm_env=llm_env or {},
         stage_label=stage_labels[0] if stage_labels else "执行中",
     )
 
@@ -654,7 +678,7 @@ def _prune_dashboard_jobs_locked() -> None:
 
 
 def _run_dashboard_job(job: DashboardJob, repo_root: Path) -> None:
-    exit_code = _stream_command(job.command, repo_root, lambda line: _update_job_from_output_line(job, line))
+    exit_code = _stream_command(job.command, repo_root, lambda line: _update_job_from_output_line(job, line), extra_env=job.llm_env)
     with job.lock:
         job.exit_code = exit_code
         job.finished_at = time.time()
@@ -774,6 +798,7 @@ def _stream_command(
     command: Sequence[str],
     cwd: Path,
     on_line: Callable[[str], None],
+    extra_env: Optional[Dict[str, str]] = None,
 ) -> int:
     process = subprocess.Popen(
         list(command),
@@ -783,7 +808,7 @@ def _stream_command(
         text=True,
         encoding="utf-8",
         errors="replace",
-        env=_command_env(),
+        env=_command_env(extra_env),
         bufsize=1,
     )
     if process.stdout is not None:
@@ -925,11 +950,13 @@ def _stage_label_from_output_line(line: str) -> str:
     return ""
 
 
-def _command_env() -> Dict[str, str]:
+def _command_env(extra_env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
     env.setdefault("PYTHONPATH", "src")
+    if extra_env:
+        env.update(extra_env)
     return env
 
 
