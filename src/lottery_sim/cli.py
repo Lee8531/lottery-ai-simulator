@@ -13,7 +13,6 @@ from lottery_sim.backtest.engine import run_backtest
 from lottery_sim.backtest.dlt_engine import run_dlt_backtest
 from lottery_sim.backtest.kl8_engine import run_kl8_backtest
 from lottery_sim.backtest.qlc_engine import run_qlc_backtest
-from lottery_sim.backtest.qxc_engine import run_qxc_backtest
 from lottery_sim.backtest.ssq_engine import run_ssq_backtest
 from lottery_sim.data_sources.dlt_17500 import (
     fetch_17500_dlt_text,
@@ -33,21 +32,11 @@ from lottery_sim.data_sources.kl8_17500 import (
     parse_17500_kl8_text,
     save_kl8_draws_csv,
 )
-from lottery_sim.data_sources.pl3_17500 import (
-    fetch_17500_pl3_text,
-    parse_17500_pl3_text,
-)
 from lottery_sim.data_sources.pl5_17500 import (
     fetch_17500_pl5_text,
     load_pl5_draws_csv,
     parse_17500_pl5_text,
     save_pl5_draws_csv,
-)
-from lottery_sim.data_sources.qxc_17500 import (
-    fetch_17500_qxc_text,
-    load_qxc_draws_csv,
-    parse_17500_qxc_text,
-    save_qxc_draws_csv,
 )
 from lottery_sim.data_sources.qlc_17500 import (
     fetch_17500_qlc_text,
@@ -67,10 +56,8 @@ from lottery_sim.fastapi_app import serve_fastapi_dashboard
 from lottery_sim.games.fucai3d import Fucai3DGame
 from lottery_sim.games.dlt import DltGame
 from lottery_sim.games.kl8 import Kl8Game
-from lottery_sim.games.pl3 import PL3Game
 from lottery_sim.games.pl5 import PL5Game
 from lottery_sim.games.qlc import QlcGame
-from lottery_sim.games.qxc import QxcGame
 from lottery_sim.games.ssq import SsqGame
 from lottery_sim.issue_calendar import next_issue_from_latest_draw
 from lottery_sim.ml.ssq import (
@@ -113,7 +100,6 @@ from lottery_sim.strategies.random_strategy import Random3DStrategy
 from lottery_sim.strategies.random_dlt import RandomDltStrategy
 from lottery_sim.strategies.random_kl8 import RandomKl8Strategy
 from lottery_sim.strategies.random_qlc import RandomQlcStrategy
-from lottery_sim.strategies.random_qxc import RandomQxcStrategy
 from lottery_sim.strategies.random_ssq import RandomSsqStrategy
 from lottery_sim.strategies.statistical_3d import (
     Cold3DStrategy,
@@ -135,11 +121,6 @@ from lottery_sim.strategies.statistical_kl8 import (
     ColdKl8Strategy,
     HotKl8Strategy,
     OmissionKl8Strategy,
-)
-from lottery_sim.strategies.statistical_qxc import (
-    ColdQxcStrategy,
-    HotQxcStrategy,
-    OmissionQxcStrategy,
 )
 from lottery_sim.strategies.statistical_qlc import (
     ColdQlcStrategy,
@@ -166,11 +147,6 @@ def build_parser() -> argparse.ArgumentParser:
     normalize.add_argument("--output", required=True, help="输出标准CSV路径")
     normalize.set_defaults(func=_normalize_3d)
 
-    normalize_pl3 = subparsers.add_parser("normalize-pl3", help="解析并标准化17500排列三历史数据")
-    normalize_pl3.add_argument("--input", help="本地17500 TXT文件路径。不传则从默认URL抓取")
-    normalize_pl3.add_argument("--url", help="17500 TXT URL，不传则使用默认正序地址")
-    normalize_pl3.add_argument("--output", required=True, help="输出标准CSV路径")
-    normalize_pl3.set_defaults(func=_normalize_pl3)
 
     normalize_pl5 = subparsers.add_parser("normalize-pl5", help="解析并标准化17500排列五历史数据")
     normalize_pl5.add_argument("--input", help="本地17500 TXT文件路径。不传则从默认URL抓取")
@@ -178,11 +154,6 @@ def build_parser() -> argparse.ArgumentParser:
     normalize_pl5.add_argument("--output", required=True, help="输出标准CSV路径")
     normalize_pl5.set_defaults(func=_normalize_pl5)
 
-    normalize_qxc = subparsers.add_parser("normalize-qxc", help="解析并标准化17500七星彩历史数据")
-    normalize_qxc.add_argument("--input", help="本地17500 TXT文件路径。不传则从默认URL抓取")
-    normalize_qxc.add_argument("--url", help="17500 TXT URL，不传则使用默认正序地址")
-    normalize_qxc.add_argument("--output", required=True, help="输出标准CSV路径")
-    normalize_qxc.set_defaults(func=_normalize_qxc)
 
     normalize_qlc = subparsers.add_parser("normalize-qlc", help="解析并标准化17500七乐彩历史数据")
     normalize_qlc.add_argument("--input", help="本地17500 TXT文件路径。不传则从默认URL抓取")
@@ -209,9 +180,7 @@ def build_parser() -> argparse.ArgumentParser:
     normalize_dlt.set_defaults(func=_normalize_dlt)
 
     _add_update_parser(subparsers, "update-3d", "增量更新福彩3D开奖数据", _update_3d)
-    _add_update_parser(subparsers, "update-pl3", "增量更新排列三开奖数据", _update_pl3)
     _add_update_parser(subparsers, "update-pl5", "增量更新排列五开奖数据", _update_pl5)
-    _add_update_parser(subparsers, "update-qxc", "增量更新7星彩开奖数据", _update_qxc)
     _add_update_parser(subparsers, "update-qlc", "增量更新七乐彩开奖数据", _update_qlc)
     _add_update_parser(subparsers, "update-kl8", "增量更新快乐8开奖数据", _update_kl8)
     _add_update_parser(subparsers, "update-ssq", "增量更新双色球开奖数据", _update_ssq)
@@ -223,11 +192,6 @@ def build_parser() -> argparse.ArgumentParser:
     backtest.add_argument("--min-history", type=int, default=1, help="最少历史期数")
     backtest.set_defaults(func=_backtest_3d)
 
-    backtest_pl3 = subparsers.add_parser("backtest-pl3", help="对标准CSV执行排列三随机基线回测")
-    backtest_pl3.add_argument("--csv", required=True, help="标准CSV路径")
-    backtest_pl3.add_argument("--seed", type=int, default=20260505, help="随机种子")
-    backtest_pl3.add_argument("--min-history", type=int, default=1, help="最少历史期数")
-    backtest_pl3.set_defaults(func=_backtest_pl3)
 
     backtest_pl5 = subparsers.add_parser("backtest-pl5", help="对标准CSV执行排列五随机基线回测")
     backtest_pl5.add_argument("--csv", required=True, help="标准CSV路径")
@@ -235,11 +199,6 @@ def build_parser() -> argparse.ArgumentParser:
     backtest_pl5.add_argument("--min-history", type=int, default=1, help="最少历史期数")
     backtest_pl5.set_defaults(func=_backtest_pl5)
 
-    backtest_qxc = subparsers.add_parser("backtest-qxc", help="对标准CSV执行七星彩随机基线回测")
-    backtest_qxc.add_argument("--csv", required=True, help="标准CSV路径")
-    backtest_qxc.add_argument("--seed", type=int, default=20260505, help="随机种子")
-    backtest_qxc.add_argument("--min-history", type=int, default=1, help="最少历史期数")
-    backtest_qxc.set_defaults(func=_backtest_qxc)
 
     backtest_qlc = subparsers.add_parser("backtest-qlc", help="对标准CSV执行七乐彩随机基线回测")
     backtest_qlc.add_argument("--csv", required=True, help="标准CSV路径")
@@ -273,12 +232,6 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--min-history", type=int, default=30, help="最少历史期数")
     compare.set_defaults(func=_compare_3d)
 
-    compare_pl3 = subparsers.add_parser("compare-pl3", help="对排列三执行多策略回测对比")
-    compare_pl3.add_argument("--csv", required=True, help="标准CSV路径")
-    compare_pl3.add_argument("--seed", type=int, default=20260505, help="随机基线种子")
-    compare_pl3.add_argument("--window", type=int, default=30, help="统计策略窗口期数")
-    compare_pl3.add_argument("--min-history", type=int, default=30, help="最少历史期数")
-    compare_pl3.set_defaults(func=_compare_pl3)
 
     compare_pl5 = subparsers.add_parser("compare-pl5", help="对排列五执行多策略回测对比")
     compare_pl5.add_argument("--csv", required=True, help="标准CSV路径")
@@ -287,12 +240,6 @@ def build_parser() -> argparse.ArgumentParser:
     compare_pl5.add_argument("--min-history", type=int, default=30, help="最少历史期数")
     compare_pl5.set_defaults(func=_compare_pl5)
 
-    compare_qxc = subparsers.add_parser("compare-qxc", help="对七星彩执行多策略回测对比")
-    compare_qxc.add_argument("--csv", required=True, help="标准CSV路径")
-    compare_qxc.add_argument("--seed", type=int, default=20260505, help="随机基线种子")
-    compare_qxc.add_argument("--window", type=int, default=30, help="统计策略窗口期数")
-    compare_qxc.add_argument("--min-history", type=int, default=30, help="最少历史期数")
-    compare_qxc.set_defaults(func=_compare_qxc)
 
     compare_qlc = subparsers.add_parser("compare-qlc", help="对七乐彩执行多策略回测对比")
     compare_qlc.add_argument("--csv", required=True, help="标准CSV路径")
@@ -330,12 +277,6 @@ def build_parser() -> argparse.ArgumentParser:
     stability.add_argument("--min-history", type=int, default=30, help="最少历史期数")
     stability.set_defaults(func=_stability_3d)
 
-    stability_pl3 = subparsers.add_parser("stability-pl3", help="评估排列三策略分年稳定性")
-    stability_pl3.add_argument("--csv", required=True, help="标准CSV路径")
-    stability_pl3.add_argument("--seeds", default="1,2,3,4,5", help="随机基线种子列表，逗号分隔")
-    stability_pl3.add_argument("--window", type=int, default=30, help="统计策略窗口期数")
-    stability_pl3.add_argument("--min-history", type=int, default=30, help="最少历史期数")
-    stability_pl3.set_defaults(func=_stability_pl3)
 
     stability_pl5 = subparsers.add_parser("stability-pl5", help="评估排列五策略分年稳定性")
     stability_pl5.add_argument("--csv", required=True, help="标准CSV路径")
@@ -344,12 +285,6 @@ def build_parser() -> argparse.ArgumentParser:
     stability_pl5.add_argument("--min-history", type=int, default=30, help="最少历史期数")
     stability_pl5.set_defaults(func=_stability_pl5)
 
-    stability_qxc = subparsers.add_parser("stability-qxc", help="评估七星彩策略分年稳定性")
-    stability_qxc.add_argument("--csv", required=True, help="标准CSV路径")
-    stability_qxc.add_argument("--seeds", default="1,2,3,4,5", help="随机基线种子列表，逗号分隔")
-    stability_qxc.add_argument("--window", type=int, default=30, help="统计策略窗口期数")
-    stability_qxc.add_argument("--min-history", type=int, default=30, help="最少历史期数")
-    stability_qxc.set_defaults(func=_stability_qxc)
 
     stability_qlc = subparsers.add_parser("stability-qlc", help="评估七乐彩策略分年稳定性")
     stability_qlc.add_argument("--csv", required=True, help="标准CSV路径")
@@ -381,9 +316,7 @@ def build_parser() -> argparse.ArgumentParser:
     stability_dlt.set_defaults(func=_stability_dlt)
 
     _add_recommend_parser(subparsers, "recommend-3d", "生成福彩3D候选号码", _recommend_3d)
-    _add_recommend_parser(subparsers, "recommend-pl3", "生成排列三候选号码", _recommend_pl3)
     _add_recommend_parser(subparsers, "recommend-pl5", "生成排列五候选号码", _recommend_pl5)
-    _add_recommend_parser(subparsers, "recommend-qxc", "生成7星彩候选号码", _recommend_qxc)
     _add_recommend_parser(subparsers, "recommend-qlc", "生成七乐彩候选号码", _recommend_qlc)
     _add_recommend_parser(subparsers, "recommend-kl8", "生成快乐8候选号码", _recommend_kl8, pick_size=True)
     _add_recommend_parser(subparsers, "recommend-ssq", "生成双色球候选号码", _recommend_ssq)
@@ -427,26 +360,20 @@ def build_parser() -> argparse.ArgumentParser:
     record_ml_ssq.set_defaults(func=_record_recommend_ml_ssq)
 
     _add_generic_ml_parsers(subparsers, "3d", "福彩3D", _train_ml_3d, _backtest_ml_3d, _recommend_ml_3d, _record_recommend_ml_3d)
-    _add_generic_ml_parsers(subparsers, "pl3", "排列三", _train_ml_pl3, _backtest_ml_pl3, _recommend_ml_pl3, _record_recommend_ml_pl3)
     _add_generic_ml_parsers(subparsers, "pl5", "排列五", _train_ml_pl5, _backtest_ml_pl5, _recommend_ml_pl5, _record_recommend_ml_pl5)
-    _add_generic_ml_parsers(subparsers, "qxc", "7星彩", _train_ml_qxc, _backtest_ml_qxc, _recommend_ml_qxc, _record_recommend_ml_qxc)
     _add_generic_ml_parsers(subparsers, "qlc", "七乐彩", _train_ml_qlc, _backtest_ml_qlc, _recommend_ml_qlc, _record_recommend_ml_qlc)
     _add_generic_ml_parsers(subparsers, "kl8", "快乐8", _train_ml_kl8, _backtest_ml_kl8, _recommend_ml_kl8, _record_recommend_ml_kl8, pick_size=True)
     _add_generic_ml_parsers(subparsers, "dlt", "大乐透", _train_ml_dlt, _backtest_ml_dlt, _recommend_ml_dlt, _record_recommend_ml_dlt)
 
     _add_record_recommend_parser(subparsers, "record-recommend-3d", "保存福彩3D推荐记录", _record_recommend_3d)
-    _add_record_recommend_parser(subparsers, "record-recommend-pl3", "保存排列三推荐记录", _record_recommend_pl3)
     _add_record_recommend_parser(subparsers, "record-recommend-pl5", "保存排列五推荐记录", _record_recommend_pl5)
-    _add_record_recommend_parser(subparsers, "record-recommend-qxc", "保存7星彩推荐记录", _record_recommend_qxc)
     _add_record_recommend_parser(subparsers, "record-recommend-qlc", "保存七乐彩推荐记录", _record_recommend_qlc)
     _add_record_recommend_parser(subparsers, "record-recommend-kl8", "保存快乐8推荐记录", _record_recommend_kl8, pick_size=True)
     _add_record_recommend_parser(subparsers, "record-recommend-ssq", "保存双色球推荐记录", _record_recommend_ssq)
     _add_record_recommend_parser(subparsers, "record-recommend-dlt", "保存大乐透推荐记录", _record_recommend_dlt)
 
     _add_verify_recommend_parser(subparsers, "verify-recommend-3d", "校验福彩3D推荐记录", _verify_recommend_3d)
-    _add_verify_recommend_parser(subparsers, "verify-recommend-pl3", "校验排列三推荐记录", _verify_recommend_pl3)
     _add_verify_recommend_parser(subparsers, "verify-recommend-pl5", "校验排列五推荐记录", _verify_recommend_pl5)
-    _add_verify_recommend_parser(subparsers, "verify-recommend-qxc", "校验7星彩推荐记录", _verify_recommend_qxc)
     _add_verify_recommend_parser(subparsers, "verify-recommend-qlc", "校验七乐彩推荐记录", _verify_recommend_qlc)
     _add_verify_recommend_parser(subparsers, "verify-recommend-kl8", "校验快乐8推荐记录", _verify_recommend_kl8, pick_size=True)
     _add_verify_recommend_parser(subparsers, "verify-recommend-ssq", "校验双色球推荐记录", _verify_recommend_ssq)
@@ -585,15 +512,6 @@ def _normalize_3d(args) -> None:
     )
 
 
-def _normalize_pl3(args) -> None:
-    _normalize_pick3(
-        args=args,
-        fetch_text=fetch_17500_pl3_text,
-        parse_text=parse_17500_pl3_text,
-        label="排列三",
-    )
-
-
 def _normalize_pl5(args) -> None:
     if args.input:
         text = _read_text_file(Path(args.input))
@@ -603,17 +521,6 @@ def _normalize_pl5(args) -> None:
     draws = parse_17500_pl5_text(text)
     save_pl5_draws_csv(draws, Path(args.output))
     print(f"已保存 {len(draws)} 条排列五开奖数据：{args.output}")
-
-
-def _normalize_qxc(args) -> None:
-    if args.input:
-        text = _read_text_file(Path(args.input))
-    else:
-        text = fetch_17500_qxc_text(url=args.url) if args.url else fetch_17500_qxc_text()
-
-    draws = parse_17500_qxc_text(text)
-    save_qxc_draws_csv(draws, Path(args.output))
-    print(f"已保存 {len(draws)} 条7星彩开奖数据：{args.output}")
 
 
 def _normalize_qlc(args) -> None:
@@ -682,17 +589,6 @@ def _update_3d(args) -> None:
     )
 
 
-def _update_pl3(args) -> None:
-    _update_draws(
-        args=args,
-        fetch_text=fetch_17500_pl3_text,
-        parse_text=parse_17500_pl3_text,
-        load_csv=load_draws_csv,
-        save_csv=save_draws_csv,
-        label="排列三",
-    )
-
-
 def _update_pl5(args) -> None:
     _update_draws(
         args=args,
@@ -701,17 +597,6 @@ def _update_pl5(args) -> None:
         load_csv=load_pl5_draws_csv,
         save_csv=save_pl5_draws_csv,
         label="排列五",
-    )
-
-
-def _update_qxc(args) -> None:
-    _update_draws(
-        args=args,
-        fetch_text=fetch_17500_qxc_text,
-        parse_text=parse_17500_qxc_text,
-        load_csv=load_qxc_draws_csv,
-        save_csv=save_qxc_draws_csv,
-        label="7星彩",
     )
 
 
@@ -779,10 +664,6 @@ def _backtest_3d(args) -> None:
     _backtest_pick3(args=args, game=Fucai3DGame(), label="福彩3D")
 
 
-def _backtest_pl3(args) -> None:
-    _backtest_pick3(args=args, game=PL3Game(), label="排列三")
-
-
 def _backtest_pl5(args) -> None:
     draws = load_pl5_draws_csv(Path(args.csv))
     result = run_backtest(
@@ -792,17 +673,6 @@ def _backtest_pl5(args) -> None:
         min_history=args.min_history,
     )
     print(render_backtest_report(result, strategy_name=f"排列五随机基线(seed={args.seed})"))
-
-
-def _backtest_qxc(args) -> None:
-    draws = load_qxc_draws_csv(Path(args.csv))
-    result = run_qxc_backtest(
-        draws=draws,
-        game=QxcGame(),
-        strategy=RandomQxcStrategy(seed=args.seed),
-        min_history=args.min_history,
-    )
-    print(render_backtest_report(result, strategy_name=f"7星彩随机基线(seed={args.seed})"))
 
 
 def _backtest_qlc(args) -> None:
@@ -865,10 +735,6 @@ def _compare_3d(args) -> None:
     _compare_pick3(args=args, game=Fucai3DGame())
 
 
-def _compare_pl3(args) -> None:
-    _compare_pick3(args=args, game=PL3Game())
-
-
 def _compare_pl5(args) -> None:
     draws = load_pl5_draws_csv(Path(args.csv))
     strategies = [
@@ -883,30 +749,6 @@ def _compare_pl5(args) -> None:
             run_backtest(
                 draws=draws,
                 game=PL5Game(),
-                strategy=strategy,
-                min_history=args.min_history,
-            ),
-        )
-        for strategy in strategies
-    ]
-    print(render_compare_report(results))
-
-
-def _compare_qxc(args) -> None:
-    draws = load_qxc_draws_csv(Path(args.csv))
-    game = QxcGame()
-    strategies = [
-        RandomQxcStrategy(seed=args.seed),
-        HotQxcStrategy(window=args.window),
-        ColdQxcStrategy(window=args.window),
-        OmissionQxcStrategy(window=args.window),
-    ]
-    results = [
-        (
-            strategy.name,
-            run_qxc_backtest(
-                draws=draws,
-                game=game,
                 strategy=strategy,
                 min_history=args.min_history,
             ),
@@ -1040,10 +882,6 @@ def _stability_3d(args) -> None:
     _stability_pick3(args=args, game=Fucai3DGame())
 
 
-def _stability_pl3(args) -> None:
-    _stability_pick3(args=args, game=PL3Game())
-
-
 def _stability_pl5(args) -> None:
     draws = load_pl5_draws_csv(Path(args.csv))
     seeds = _parse_seed_list(args.seeds)
@@ -1091,58 +929,6 @@ def _stability_pl5(args) -> None:
         seed_sensitivity,
         strategy_sections,
         game_label="排列五",
-    ))
-
-
-def _stability_qxc(args) -> None:
-    draws = load_qxc_draws_csv(Path(args.csv))
-    seeds = _parse_seed_list(args.seeds)
-    game = QxcGame()
-
-    seed_results = [
-        (
-            seed,
-            run_qxc_backtest(
-                draws=draws,
-                game=game,
-                strategy=RandomQxcStrategy(seed=seed),
-                min_history=args.min_history,
-            ),
-        )
-        for seed in seeds
-    ]
-    seed_sensitivity = summarize_seed_sensitivity(seed_results)
-
-    strategy_sections = []
-    for strategy in [
-        HotQxcStrategy(window=args.window),
-        ColdQxcStrategy(window=args.window),
-        OmissionQxcStrategy(window=args.window),
-    ]:
-        result = run_qxc_backtest(
-            draws=draws,
-            game=game,
-            strategy=strategy,
-            min_history=args.min_history,
-        )
-        overall = SegmentMetric(
-            segment="总体",
-            total_bets=result.total_bets,
-            total_cost=result.total_cost,
-            total_payout=result.total_payout,
-            direct_hits=winning_bet_count(result),
-        )
-        strategy_sections.append((
-            strategy.name,
-            overall,
-            summarize_result_by_issue_year(result),
-        ))
-
-    print(render_stability_report(
-        seed_sensitivity,
-        strategy_sections,
-        game_label="7星彩",
-        metric_label="中奖注数",
     ))
 
 
@@ -1358,10 +1144,6 @@ def _recommend_3d(args) -> None:
     _recommend_pick3(args=args, game=Fucai3DGame())
 
 
-def _recommend_pl3(args) -> None:
-    _recommend_pick3(args=args, game=PL3Game())
-
-
 def _recommend_pl5(args) -> None:
     draws = load_pl5_draws_csv(Path(args.csv))
     random_strategy = Random5DStrategy(seed=args.seed)
@@ -1373,23 +1155,6 @@ def _recommend_pl5(args) -> None:
             Hot5DStrategy(window=args.window),
             Cold5DStrategy(window=args.window),
             Omission5DStrategy(window=args.window),
-        ],
-        filler_strategy=random_strategy,
-        count=args.count,
-    )
-
-
-def _recommend_qxc(args) -> None:
-    draws = load_qxc_draws_csv(Path(args.csv))
-    random_strategy = RandomQxcStrategy(seed=args.seed)
-    _print_recommendation_report(
-        draws=draws,
-        game=QxcGame(),
-        strategies=[
-            random_strategy,
-            HotQxcStrategy(window=args.window),
-            ColdQxcStrategy(window=args.window),
-            OmissionQxcStrategy(window=args.window),
         ],
         filler_strategy=random_strategy,
         count=args.count,
@@ -1534,16 +1299,8 @@ def _train_ml_3d(args) -> None:
     _train_ml_generic(args, "3d")
 
 
-def _train_ml_pl3(args) -> None:
-    _train_ml_generic(args, "pl3")
-
-
 def _train_ml_pl5(args) -> None:
     _train_ml_generic(args, "pl5")
-
-
-def _train_ml_qxc(args) -> None:
-    _train_ml_generic(args, "qxc")
 
 
 def _train_ml_qlc(args) -> None:
@@ -1562,16 +1319,8 @@ def _backtest_ml_3d(args) -> None:
     _backtest_ml_generic(args, "3d")
 
 
-def _backtest_ml_pl3(args) -> None:
-    _backtest_ml_generic(args, "pl3")
-
-
 def _backtest_ml_pl5(args) -> None:
     _backtest_ml_generic(args, "pl5")
-
-
-def _backtest_ml_qxc(args) -> None:
-    _backtest_ml_generic(args, "qxc")
 
 
 def _backtest_ml_qlc(args) -> None:
@@ -1590,16 +1339,8 @@ def _recommend_ml_3d(args) -> None:
     _recommend_ml_generic(args, "3d")
 
 
-def _recommend_ml_pl3(args) -> None:
-    _recommend_ml_generic(args, "pl3")
-
-
 def _recommend_ml_pl5(args) -> None:
     _recommend_ml_generic(args, "pl5")
-
-
-def _recommend_ml_qxc(args) -> None:
-    _recommend_ml_generic(args, "qxc")
 
 
 def _recommend_ml_qlc(args) -> None:
@@ -1618,16 +1359,8 @@ def _record_recommend_ml_3d(args) -> None:
     _record_recommend_ml_generic(args, "3d")
 
 
-def _record_recommend_ml_pl3(args) -> None:
-    _record_recommend_ml_generic(args, "pl3")
-
-
 def _record_recommend_ml_pl5(args) -> None:
     _record_recommend_ml_generic(args, "pl5")
-
-
-def _record_recommend_ml_qxc(args) -> None:
-    _record_recommend_ml_generic(args, "qxc")
 
 
 def _record_recommend_ml_qlc(args) -> None:
@@ -1781,23 +1514,11 @@ def _load_generic_ml_context(args, game_code: str):
             Fucai3DGame(),
             ml_adapter_for_game("3d"),
         )
-    if game_code == "pl3":
-        return (
-            available_recommendation_draws(load_draws_csv(Path(args.csv))),
-            PL3Game(),
-            ml_adapter_for_game("pl3"),
-        )
     if game_code == "pl5":
         return (
             available_recommendation_draws(load_pl5_draws_csv(Path(args.csv))),
             PL5Game(),
             ml_adapter_for_game("pl5"),
-        )
-    if game_code == "qxc":
-        return (
-            available_recommendation_draws(load_qxc_draws_csv(Path(args.csv))),
-            QxcGame(),
-            ml_adapter_for_game("qxc"),
         )
     if game_code == "qlc":
         return (
@@ -1861,10 +1582,6 @@ def _record_recommend_3d(args) -> None:
     _record_recommend_pick3(args=args, game_code="3d", game=Fucai3DGame())
 
 
-def _record_recommend_pl3(args) -> None:
-    _record_recommend_pick3(args=args, game_code="pl3", game=PL3Game())
-
-
 def _record_recommend_pl5(args) -> None:
     draws = load_pl5_draws_csv(Path(args.csv))
     random_strategy = Random5DStrategy(seed=args.seed)
@@ -1878,24 +1595,6 @@ def _record_recommend_pl5(args) -> None:
             Hot5DStrategy(window=args.window),
             Cold5DStrategy(window=args.window),
             Omission5DStrategy(window=args.window),
-        ],
-        filler_strategy=random_strategy,
-    )
-
-
-def _record_recommend_qxc(args) -> None:
-    draws = load_qxc_draws_csv(Path(args.csv))
-    random_strategy = RandomQxcStrategy(seed=args.seed)
-    _save_recommendation_records(
-        args=args,
-        game_code="qxc",
-        draws=draws,
-        game=QxcGame(),
-        strategies=[
-            random_strategy,
-            HotQxcStrategy(window=args.window),
-            ColdQxcStrategy(window=args.window),
-            OmissionQxcStrategy(window=args.window),
         ],
         filler_strategy=random_strategy,
     )
@@ -2131,16 +1830,8 @@ def _verify_recommend_3d(args) -> None:
     _verify_recommend(args=args, game_code="3d", draws=load_draws_csv(Path(args.csv)), game=Fucai3DGame())
 
 
-def _verify_recommend_pl3(args) -> None:
-    _verify_recommend(args=args, game_code="pl3", draws=load_draws_csv(Path(args.csv)), game=PL3Game())
-
-
 def _verify_recommend_pl5(args) -> None:
     _verify_recommend(args=args, game_code="pl5", draws=load_pl5_draws_csv(Path(args.csv)), game=PL5Game())
-
-
-def _verify_recommend_qxc(args) -> None:
-    _verify_recommend(args=args, game_code="qxc", draws=load_qxc_draws_csv(Path(args.csv)), game=QxcGame())
 
 
 def _verify_recommend_qlc(args) -> None:

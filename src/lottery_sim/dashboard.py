@@ -31,9 +31,7 @@ from lottery_sim.recommendation_tracking import RecommendationRecord, load_recom
 
 GAME_CONFIGS: Tuple[Tuple[str, str], ...] = (
     ("3d", "福彩3D"),
-    ("pl3", "排列三"),
     ("pl5", "排列五"),
-    ("qxc", "七星彩"),
     ("qlc", "七乐彩"),
     ("kl8", "快乐8"),
     ("ssq", "双色球"),
@@ -44,9 +42,7 @@ GAME_NAMES: Dict[str, str] = dict(GAME_CONFIGS)
 
 GAME_CSV_PATHS: Dict[str, str] = {
     "3d": "data/normalized/fucai3d.csv",
-    "pl3": "data/normalized/pl3.csv",
     "pl5": "data/normalized/pl5.csv",
-    "qxc": "data/normalized/qxc.csv",
     "qlc": "data/normalized/qlc.csv",
     "kl8": "data/normalized/kl8.csv",
     "ssq": "data/normalized/ssq.csv",
@@ -55,9 +51,7 @@ GAME_CSV_PATHS: Dict[str, str] = {
 
 SUMMARY_GAME_ALIASES: Dict[str, Tuple[str, ...]] = {
     "3d": ("福彩3D", "福彩3D直选"),
-    "pl3": ("排列三", "排列三直选"),
     "pl5": ("排列五", "排列五直选"),
-    "qxc": ("七星彩", "7星彩"),
     "qlc": ("七乐彩",),
     "kl8": ("快乐8", "快乐8选十"),
     "ssq": ("双色球",),
@@ -66,9 +60,7 @@ SUMMARY_GAME_ALIASES: Dict[str, Tuple[str, ...]] = {
 
 ANALYSIS_COLUMNS: Dict[str, Tuple[Tuple[str, str], ...]] = {
     "3d": (("号码频率", "number"),),
-    "pl3": (("号码频率", "number"),),
     "pl5": (("号码频率", "number"),),
-    "qxc": (("前六位频率", "front"), ("特别号频率", "special")),
     "qlc": (("基本号频率", "basic"), ("特别号频率", "special")),
     "kl8": (("号码频率", "numbers"),),
     "ssq": (("红球频率", "red"), ("蓝球频率", "blue")),
@@ -78,11 +70,9 @@ ANALYSIS_COLUMNS: Dict[str, Tuple[Tuple[str, str], ...]] = {
 HIT_SECTION_LABELS: Dict[str, Tuple[str, ...]] = {
     "ssq": ("红球", "蓝球"),
     "dlt": ("前区", "后区"),
-    "qxc": ("前六位", "特别号"),
     "qlc": ("基本号", "特别号"),
     "kl8": ("号码",),
     "3d": ("号码",),
-    "pl3": ("号码",),
     "pl5": ("号码",),
 }
 
@@ -1238,7 +1228,7 @@ def _analysis_tokens(game_code: str, value: str) -> Tuple[str, ...]:
     text = str(value or "").strip()
     if not text:
         return ()
-    if game_code in {"3d", "pl3", "pl5"} and " " not in text:
+    if game_code in {"3d", "pl5"} and " " not in text:
         return tuple(ch for ch in text if ch.isdigit())
     return tuple(part.strip() for part in re.split(r"\s+", text) if part.strip())
 
@@ -1288,7 +1278,7 @@ def _rank_number_omissions(
 def _analysis_sum_ranges(game_code: str, rows: Sequence[Dict[str, str]]) -> Tuple[DashboardRangeBucket, ...]:
     if not rows:
         return ()
-    width = 10 if game_code in {"3d", "pl3", "pl5", "qxc"} else 30
+    width = 10 if game_code in {"3d", "pl5"} else 30
     counter: Counter = Counter()
     for row in rows:
         total = sum(_analysis_row_numbers(game_code, row))
@@ -1363,7 +1353,7 @@ def _analysis_row_numbers(game_code: str, row: Dict[str, str]) -> Tuple[int, ...
 
 def _candidate_numbers(game_code: str, text: str) -> Tuple[int, ...]:
     value = str(text or "")
-    if game_code in {"3d", "pl3", "pl5"} and " " not in value and "+" not in value:
+    if game_code in {"3d", "pl5"} and " " not in value and "+" not in value:
         return tuple(int(ch) for ch in value if ch.isdigit())
     return tuple(int(match) for match in re.findall(r"\d+", value))
 
@@ -1375,9 +1365,7 @@ def _analysis_max_number(game_code: str) -> int:
         "qlc": 30,
         "kl8": 80,
         "3d": 9,
-        "pl3": 9,
         "pl5": 9,
-        "qxc": 9,
     }.get(game_code, 33)
 
 
@@ -2155,7 +2143,7 @@ def _split_number_sections(game_code: str, value: str) -> Tuple[Tuple[str, ...],
         return ()
     if "+" in text:
         return tuple(_split_plain_numbers(part) for part in text.split("+"))
-    return (_split_plain_numbers(text, compact_digits=game_code in {"3d", "pl3", "pl5"}),)
+    return (_split_plain_numbers(text, compact_digits=game_code in {"3d", "pl5"}),)
 
 
 def _split_plain_numbers(value: str, compact_digits: bool = False) -> Tuple[str, ...]:

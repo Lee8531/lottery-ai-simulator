@@ -26,14 +26,6 @@ GAME_RULES: dict = {
             {"name": "第3位", "min": 0, "max": 9, "pick": 1},
         ],
     },
-    "pl3": {
-        "name": "排列三",
-        "groups": [
-            {"name": "第1位", "min": 0, "max": 9, "pick": 1},
-            {"name": "第2位", "min": 0, "max": 9, "pick": 1},
-            {"name": "第3位", "min": 0, "max": 9, "pick": 1},
-        ],
-    },
     "pl5": {
         "name": "排列五",
         "groups": [
@@ -42,18 +34,6 @@ GAME_RULES: dict = {
             {"name": "第3位", "min": 0, "max": 9, "pick": 1},
             {"name": "第4位", "min": 0, "max": 9, "pick": 1},
             {"name": "第5位", "min": 0, "max": 9, "pick": 1},
-        ],
-    },
-    "qxc": {
-        "name": "七星彩",
-        "groups": [
-            {"name": "前区第1位", "min": 0, "max": 9, "pick": 1},
-            {"name": "前区第2位", "min": 0, "max": 9, "pick": 1},
-            {"name": "前区第3位", "min": 0, "max": 9, "pick": 1},
-            {"name": "前区第4位", "min": 0, "max": 9, "pick": 1},
-            {"name": "前区第5位", "min": 0, "max": 9, "pick": 1},
-            {"name": "前区第6位", "min": 0, "max": 9, "pick": 1},
-            {"name": "特别号", "min": 0, "max": 14, "pick": 1},
         ],
     },
     "qlc": {
@@ -139,14 +119,11 @@ def _build_stats_from_draws(draws: Sequence[Any], game_code: str, recent: int = 
 
 def _adapter_for_stats(game_code: str):
     """Return a function that extracts number groups from a draw object."""
-    if game_code in ("3d", "pl3"):
+    if game_code == "3d":
         def f(d): return tuple((v,) for v in d.numbers)
         return f
     if game_code == "pl5":
         def f(d): return tuple((v,) for v in d.numbers)
-        return f
-    if game_code == "qxc":
-        def f(d): return tuple((v,) for v in (*d.numbers.front, d.numbers.special))
         return f
     if game_code == "qlc":
         def f(d): return (tuple(sorted((*d.numbers.basic, d.numbers.special))),)
@@ -226,9 +203,9 @@ def _normalize_groups(groups_data: list, game_code: str) -> list:
                 offset += pick
             return split_groups
 
-    # For digit-by-digit games (3d/pl3/pl5/qxc) with mismatched groups,
+    # For digit-by-digit games (3d/pl5) with mismatched groups,
     # try to flatten all numbers and redistribute
-    if game_code in ("3d", "pl3", "pl5", "qxc"):
+    if game_code in ("3d", "pl5"):
         all_nums = []
         for g in groups_data:
             all_nums.extend(g.get("numbers", []))
@@ -292,16 +269,12 @@ def _parse_llm_response(text: str, game_code: str) -> List[Candidate]:
 def _build_number_text(numbers_parts: list, game_code: str) -> str:
     """Build display text from parsed number groups."""
     rule = GAME_RULES[game_code]
-    if game_code in ("3d", "pl3", "pl5"):
+    if game_code in ("3d", "pl5"):
         # Digit-by-digit games: concatenate
         digits = []
         for part in numbers_parts:
             digits.extend(str(n) for n in part)
         return "".join(digits)
-    if game_code == "qxc":
-        front = ",".join(str(n) for n in numbers_parts[0][:6])
-        special = str(numbers_parts[6][0]) if len(numbers_parts) > 6 else "0"
-        return f"前区({front}) 特别号({special})"
     if game_code == "qlc":
         return "".join(str(n) for n in sorted(numbers_parts[0]))
     if game_code == "kl8":
@@ -319,15 +292,10 @@ def _build_number_text(numbers_parts: list, game_code: str) -> str:
 
 def _build_pick(numbers_parts: list, game_code: str) -> Any:
     """Build the game-specific pick object from parsed numbers."""
-    if game_code in ("3d", "pl3"):
+    if game_code == "3d":
         return tuple(numbers_parts[i][0] for i in range(min(3, len(numbers_parts))))
     if game_code == "pl5":
         return tuple(numbers_parts[i][0] for i in range(min(5, len(numbers_parts))))
-    if game_code == "qxc":
-        from lottery_sim.models import QxcPick
-        front = tuple(numbers_parts[i][0] for i in range(min(6, len(numbers_parts))))
-        special = numbers_parts[6][0] if len(numbers_parts) > 6 else 0
-        return QxcPick(front=front, special=special)
     if game_code == "qlc":
         from lottery_sim.models import QlcPick
         return QlcPick(numbers=tuple(sorted(numbers_parts[0])))
