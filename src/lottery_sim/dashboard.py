@@ -1624,6 +1624,23 @@ def _render_training_record_rows(records: Sequence[DashboardTrainingRecord]) -> 
     )
 
 
+def _recommendation_batch_sort_key(batch: RecommendationBatchHistory) -> Tuple[int, int, int, int, str]:
+    """排序优先级：未开奖(0) > 已开奖且中奖(1) > 已开奖未中奖(2)；同组内按开奖日期最近排最前，再按期号和生成时间排序。"""
+    is_checked = batch.pending_count == 0 and batch.checked_count > 0
+    is_winning = batch.winning_count > 0
+    if not is_checked:
+        group = 0  # 待开奖 — 排最前
+    elif is_winning:
+        group = 1  # 已开奖且中奖 — 排中间
+    else:
+        group = 2  # 已开奖未中奖 — 排最后
+    # 开奖日期最近的排最前：日期格式如 "2026-07-16"，去掉非数字后转为整数取负
+    draw_date_val = _safe_int("".join(c for c in batch.target_draw_date if c.isdigit()), 0)
+    # 生成时间最近的排最前：格式如 "20260716132953"，去掉非数字后转为整数取负
+    generated_at_val = _safe_int("".join(c for c in batch.generated_at if c.isdigit()), 0)
+    return (group, -draw_date_val, -_issue_sort_value(batch.target_issue), -generated_at_val, batch.run_id)
+
+
 def _recommendation_batches(games: Sequence[GameDashboard]) -> Tuple[RecommendationBatchHistory, ...]:
     batches: Dict[Tuple[str, str, str, str], List[RecommendationRecord]] = {}
     draw_dates: Dict[Tuple[str, str], str] = {}
@@ -1655,8 +1672,7 @@ def _recommendation_batches(games: Sequence[GameDashboard]) -> Tuple[Recommendat
         ))
     return tuple(sorted(
         result,
-        key=lambda item: (_issue_sort_value(item.target_issue), item.generated_at, item.run_id),
-        reverse=True,
+        key=_recommendation_batch_sort_key,
     ))
 
 
