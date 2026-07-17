@@ -140,31 +140,27 @@ for g in $SELECTED_GAMES; do
     invoke_lottery "stability-$g" "$ReportDir/stability-$g.txt" \
         "stability-$g" --csv "$Csv" $ExtraArgs --seeds "$Seeds" --window "$Window"
 
-    # Step 5: Recommend
-    invoke_lottery "recommend-$g" "$ReportDir/recommend-$g.txt" \
-        "recommend-$g" --csv "$Csv" $ExtraArgs --seed "$Seed" --window "$Window" --count "$Count"
-
-    # Step 6: Train ML
+    # Step 5: Train ML (must train before recommend)
     mlModel="$ModelDir/$g-ml.json"
     invoke_lottery "train-ml-$g" "" \
         "train-ml-$g" --csv "$Csv" --model "$mlModel" --min-history "$MlMinHistory" --epochs "$MlTrainEpochs" $ExtraArgs
 
-    # Step 7: Backtest ML
+    # Step 6: Backtest ML
     invoke_lottery "backtest-ml-$g" "$ReportDir/backtest-ml-$g.txt" \
         "backtest-ml-$g" --csv "$Csv" --min-train "$MlMinTrain" --min-history "$MlMinHistory" \
         --limit "$MlBacktestLimit" --retrain-every "$MlRetrainEvery" --epochs "$MlBacktestEpochs" $ExtraArgs
 
-    # Step 8: Recommend ML
+    # Step 7: Recommend ML (skip traditional strategy, only generate ML batch)
     invoke_lottery "recommend-ml-$g" "$ReportDir/recommend-ml-$g.txt" \
         "recommend-ml-$g" --csv "$Csv" --model "$mlModel" --count "$Count" \
         --min-history "$MlMinHistory" --epochs "$MlTrainEpochs" $ExtraArgs
 
-    # Step 9: Record ML recommendation
+    # Step 8: Record ML recommendation
     invoke_lottery "record-ml-$g" "" \
         "record-recommend-ml-$g" --csv "$Csv" --model "$mlModel" --store "$RecommendationDir" \
         --count "$Count" --min-history "$MlMinHistory" --epochs "$MlTrainEpochs" $ExtraArgs
 
-    # Step 10: Verify recommendation records
+    # Step 9: Verify recommendation records
     gameDir="$RecommendationDir/$g"
     if [[ -d "$gameDir" ]]; then
         for recordFile in "$gameDir"/*.csv; do
@@ -174,11 +170,6 @@ for g in $SELECTED_GAMES; do
             fi
         done
     fi
-
-    # Step 11: Record recommendation
-    invoke_lottery "record-$g" "" \
-        "record-recommend-$g" --csv "$Csv" --store "$RecommendationDir" \
-        --seed "$Seed" --window "$Window" --count "$Count" $ExtraArgs
 done
 
 # ---- Step 12: Summarize recommendations ----

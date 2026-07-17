@@ -496,7 +496,10 @@ def _powershell_executable() -> str:
 
 
 def _dashboard_daily_options(game_code: str, options: Dict[str, str]) -> List[str]:
+    from datetime import datetime
+
     option_specs = [
+        ("seed", "-Seed", ""),
         ("count", "-Count", ""),
         ("mlMinHistory", "-MlMinHistory", "30"),
         ("mlMinTrain", "-MlMinTrain", ""),
@@ -509,6 +512,12 @@ def _dashboard_daily_options(game_code: str, options: Dict[str, str]) -> List[st
     command_options: List[str] = []
     for key, flag, default in option_specs:
         value = (options.get(key, "") or default).strip()
+        # seed: 空值或非数字时自动生成时间戳，始终传递
+        if key == "seed":
+            if not value or not value.isdigit():
+                value = datetime.now().strftime("%Y%m%d%H%M%S")
+            command_options.extend([flag, value])
+            continue
         if not value:
             continue
         if not value.isdigit():
@@ -1704,6 +1713,7 @@ def _render_action_pane(game: GameDashboard, active: bool) -> str:
 def _render_ml_controls(game: GameDashboard) -> str:
     ml_name = _ml_display_name(game)
     basic_controls = [
+        ("随机种子", "seed", "", "控制推荐号码生成的随机性。不同种子产生不同号码；相同种子+相同数据=相同号码。留空时自动使用当前时间戳。"),
         ("候选数量", "count", "10", "生成几组候选号码。日常看 5-10 组就够，多了只会增加选择负担。"),
         ("回测期数", "mlBacktestLimit", "30", "用最近多少期历史做模拟验证。越大越慢，但更能看长期表现。"),
     ]
@@ -1730,16 +1740,22 @@ def _render_ml_controls(game: GameDashboard) -> str:
 
 
 def _render_param_fields(controls: Sequence[Tuple[str, str, str, str]]) -> str:
-    return "\n".join(
-        f"""
-<label class="param-field">
+    items = []
+    for label, name, value, help_text in controls:
+        is_seed = name == "seed"
+        input_type = "text" if is_seed else "number"
+        min_attr = "" if is_seed else " min=\"1\""
+        seed_btn = ""
+        if is_seed:
+            seed_btn = "<button type=\"button\" class=\"seed-auto-btn\" data-seed-action=\"auto\" title=\"使用当前时间戳自动填充\">自动</button>"
+        items.append(f"""
+<label class="param-field{' seed-field' if is_seed else ''}">
   <span class="param-label">{html.escape(label)}</span>
-  <input type="number" min="1" name="{html.escape(name)}" value="{html.escape(value)}" data-action-param="{html.escape(name)}">
+  <div class="seed-input-row">{seed_btn}<input type="{input_type}"{min_attr} name="{html.escape(name)}" value="{html.escape(value)}" data-action-param="{html.escape(name)}" placeholder="{html.escape('留空=自动时间戳' if is_seed else value)}"></div>
   <span class="param-desc">{html.escape(help_text)}</span>
 </label>
-""".strip()
-        for label, name, value, help_text in controls
-    )
+""".strip())
+    return "\n".join(items)
 
 
 def _ml_display_name(game: GameDashboard) -> str:
@@ -2575,6 +2591,29 @@ dd { margin: 0; font-size: 16px; font-weight: 700; }
   font-size: 12px;
   line-height: 1.4;
 }
+.seed-input-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.seed-auto-btn {
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  color: var(--text);
+  white-space: nowrap;
+}
+.seed-auto-btn:hover {
+  background: var(--hover);
+}
+.seed-field input {
+  flex: 1;
+  min-width: 0;
+}
 .advanced-params {
   margin-top: 10px;
   border: 1px solid var(--line);
@@ -3068,7 +3107,7 @@ function actionParams(button) {
   const pane = button.closest('[data-game-pane]');
   if (pane) {
     pane.querySelectorAll('[data-action-param]').forEach((input) => {
-      if (input.value !== '') {
+      if (input.value !== '' || input.dataset.actionParam === 'seed') {
         params.set(input.dataset.actionParam, input.value);
       }
     });
@@ -3080,6 +3119,22 @@ gameActionTabs.forEach((tab) => {
     const game = tab.dataset.gameTab;
     gameActionTabs.forEach((item) => item.classList.toggle('active', item === tab));
     gameActionPanes.forEach((pane) => pane.classList.toggle('active', pane.dataset.gamePane === game));
+  });
+});
+// 自动填充种子按钮
+document.querySelectorAll('.seed-auto-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const input = btn.parentElement.querySelector('input[data-action-param="seed"]');
+    if (input) {
+      const now = new Date();
+      const ts = now.getFullYear().toString() +
+        (now.getMonth() + 1).toString().padStart(2, '0') +
+        now.getDate().toString().padStart(2, '0') +
+        now.getHours().toString().padStart(2, '0') +
+        now.getMinutes().toString().padStart(2, '0') +
+        now.getSeconds().toString().padStart(2, '0');
+      input.value = ts;
+    }
   });
 });
 clearActionOutput.addEventListener('click', () => {
