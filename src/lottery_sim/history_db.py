@@ -109,7 +109,17 @@ def load_dashboard_actions(db_path: Path, limit: int = 100) -> List[Dict[str, An
 
 def sync_recommendation_records(db_path: Path, records: Iterable[Any]) -> None:
     init_history_db(db_path)
+    records = list(records)
+    if not records:
+        return
+    # Collect (game_code, target_issue) pairs to sync — delete stale records first
+    pairs = {(r.game_code, r.target_issue) for r in records}
     with sqlite3.connect(db_path) as conn:
+        for game_code, target_issue in pairs:
+            conn.execute(
+                "DELETE FROM recommendation_records WHERE game_code = ? AND target_issue = ?",
+                (game_code, target_issue),
+            )
         conn.executemany(
             """
             INSERT OR REPLACE INTO recommendation_records (

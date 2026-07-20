@@ -23,7 +23,7 @@ if [[ -z "$Game" ]]; then
     echo "Please specify -Game <code>." >&2; exit 1
 fi
 
-ALLOWED_GAMES="3d pl3 pl5 qxc qlc kl8 ssq dlt"
+ALLOWED_GAMES="3d pl5 qlc kl8 ssq dlt"
 if ! echo "$ALLOWED_GAMES" | grep -qw "$Game"; then
     echo "Unsupported -Game '$Game'. Allowed: $ALLOWED_GAMES" >&2; exit 1
 fi
@@ -31,9 +31,7 @@ fi
 # ---- Map game code to update/verify commands ----
 case "$Game" in
     3d)  UpdateCmd="update-3d";  VerifyCmd="verify-recommend-3d";  Csv="$DataDir/fucai3d.csv"; ExtraArgs="" ;;
-    pl3) UpdateCmd="update-pl3"; VerifyCmd="verify-recommend-pl3"; Csv="$DataDir/pl3.csv";      ExtraArgs="" ;;
     pl5) UpdateCmd="update-pl5"; VerifyCmd="verify-recommend-pl5"; Csv="$DataDir/pl5.csv";      ExtraArgs="" ;;
-    qxc) UpdateCmd="update-qxc"; VerifyCmd="verify-recommend-qxc"; Csv="$DataDir/qxc.csv";      ExtraArgs="" ;;
     qlc) UpdateCmd="update-qlc"; VerifyCmd="verify-recommend-qlc"; Csv="$DataDir/qlc.csv";      ExtraArgs="" ;;
     kl8) UpdateCmd="update-kl8"; VerifyCmd="verify-recommend-kl8"; Csv="$DataDir/kl8.csv";      ExtraArgs="--pick-size 10" ;;
     ssq) UpdateCmd="update-ssq"; VerifyCmd="verify-recommend-ssq"; Csv="$DataDir/ssq.csv";      ExtraArgs="" ;;

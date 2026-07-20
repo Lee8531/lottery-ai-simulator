@@ -52,14 +52,14 @@ if ! $All && [[ -z "$Game" ]]; then
     echo "Please specify -Game <code> or use -All explicitly." >&2; exit 1
 fi
 
-ALLOWED_GAMES="3d pl3 pl5 qxc qlc kl8 ssq dlt"
+ALLOWED_GAMES="3d pl5 qlc kl8 ssq dlt"
 if [[ -n "$Game" ]] && ! echo "$ALLOWED_GAMES" | grep -qw "$Game"; then
     echo "Unsupported -Game '$Game'. Allowed: $ALLOWED_GAMES" >&2; exit 1
 fi
 
 # ---- Select games ----
 if $All; then
-    SELECTED_GAMES="3d pl3 pl5 qxc qlc kl8 ssq dlt"
+    SELECTED_GAMES="3d pl5 qlc kl8 ssq dlt"
 else
     SELECTED_GAMES="$Game"
 fi
@@ -110,9 +110,7 @@ mkdir -p "$DataDir" "$ReportDir" "$RecommendationDir" "$ModelDir"
 for g in $SELECTED_GAMES; do
     case "$g" in
         3d)  Csv="$DataDir/fucai3d.csv"; ExtraArgs="" ;;
-        pl3) Csv="$DataDir/pl3.csv";      ExtraArgs="" ;;
         pl5) Csv="$DataDir/pl5.csv";      ExtraArgs="" ;;
-        qxc) Csv="$DataDir/qxc.csv";      ExtraArgs="" ;;
         qlc) Csv="$DataDir/qlc.csv";      ExtraArgs="" ;;
         kl8) Csv="$DataDir/kl8.csv";      ExtraArgs="--pick-size 10" ;;
         ssq) Csv="$DataDir/ssq.csv";      ExtraArgs="" ;;

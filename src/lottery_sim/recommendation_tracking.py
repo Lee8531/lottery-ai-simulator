@@ -1,4 +1,5 @@
 import csv
+import re
 from dataclasses import dataclass
 from datetime import datetime, time as datetime_time
 from pathlib import Path
@@ -224,25 +225,45 @@ def evaluate_recommendation_records(
             ))
             continue
 
-        pick = game.validate_pick(pick_parser(record.numbers))
-        payout = game.payout(draw.numbers, pick)
-        evaluated.append(RecommendationRecord(
-            game_code=record.game_code,
-            game_name=record.game_name,
-            history_until_issue=record.history_until_issue,
-            target_issue=record.target_issue,
-            rank=record.rank,
-            strategy_name=record.strategy_name,
-            numbers=record.numbers,
-            reason=record.reason,
-            status="checked",
-            draw_numbers=_number_text(draw),
-            prize_level=_prize_level(game, draw.numbers, pick, payout),
-            cost=record.cost,
-            payout=payout,
-            generated_at=record.generated_at,
-            run_id=record.run_id,
-        ))
+        try:
+            pick = game.validate_pick(pick_parser(record.numbers))
+            payout = game.payout(draw.numbers, pick)
+            evaluated.append(RecommendationRecord(
+                game_code=record.game_code,
+                game_name=record.game_name,
+                history_until_issue=record.history_until_issue,
+                target_issue=record.target_issue,
+                rank=record.rank,
+                strategy_name=record.strategy_name,
+                numbers=record.numbers,
+                reason=record.reason,
+                status="checked",
+                draw_numbers=_number_text(draw),
+                prize_level=_prize_level(game, draw.numbers, pick, payout),
+                cost=record.cost,
+                payout=payout,
+                generated_at=record.generated_at,
+                run_id=record.run_id,
+            ))
+        except (ValueError, Exception):
+            # Cannot parse numbers (e.g. malformed LLM output) — mark as checked with no payout
+            evaluated.append(RecommendationRecord(
+                game_code=record.game_code,
+                game_name=record.game_name,
+                history_until_issue=record.history_until_issue,
+                target_issue=record.target_issue,
+                rank=record.rank,
+                strategy_name=record.strategy_name,
+                numbers=record.numbers,
+                reason=record.reason,
+                status="checked",
+                draw_numbers=_number_text(draw),
+                prize_level="号码格式异常",
+                cost=record.cost,
+                payout=0,
+                generated_at=record.generated_at,
+                run_id=record.run_id,
+            ))
 
     checked = [record for record in evaluated if record.status == "checked"]
     total_cost = sum(record.cost for record in checked)
@@ -347,9 +368,13 @@ def _parse_direct_digits(value: str, size: int) -> Tuple[int, ...]:
 
 def _split_compound(value: str) -> Tuple[str, str]:
     parts = [part.strip() for part in value.split("+")]
-    if len(parts) != 2 or not all(parts):
-        raise ValueError(f"复合号码格式必须包含 + 分隔: {value}")
-    return parts[0], parts[1]
+    if len(parts) == 2 and all(parts):
+        return parts[0], parts[1]
+    # Fallback: LLM display format like "红球(1 2 3) 蓝球(4)" or "前区(1 2 3) 后区(4 5)"
+    groups = re.findall(r"[^()]*\(([^)]+)\)", value)
+    if len(groups) >= 2:
+        return groups[0].strip(), groups[1].strip()
+    raise ValueError(f"复合号码格式必须包含 + 分隔: {value}")
 
 
 def _parse_int_tokens(value: str, size: int) -> Tuple[int, ...]:
